@@ -25,21 +25,12 @@ const URLS = [
   '/metrics/pageviews/aggregate/{project}/{access}/{agent}/{granularity}/{start}/{end}',
 ];
 
-function myflatmap<T, U>(f: (value: T, index?: number, array?: T[]) => U, arr: T[]) {
-  let ret: U[] = [];
-  arr.forEach((v, i, arr) => ret = ret.concat(f(v, i, arr)));
-  return ret;
-}
-
-let codes = new Set([...myflatmap(
-    s => (s.match(/{[^}]+}/g) || []).map(s => s.slice(1, -1).replace(/-(.)/g, (_, c) => c.toUpperCase())), URLS) ]);
-
 function allArgsGenerator() {
-  let editorTypes = 'anonymous,group-bot,name-bot,user'.split(',');
-  let pageTypes = 'content,non-content'.split(',');
-  let accessSites = 'desktop-site,mobile-site'.split(',');
-  let accesses = 'desktop,mobile-app,mobile-web'.split(',');
-  let agents = 'user,spider'.split(',');
+  const editorTypes = 'anonymous,group-bot,name-bot,user'.split(',');
+  const pageTypes = 'content,non-content'.split(',');
+  const accessSites = 'desktop-site,mobile-site'.split(',');
+  const accesses = 'desktop,mobile-app,mobile-web'.split(',');
+  const agents = 'user,spider'.split(',');
   const converter = ([ editorType, pageType, accessSite, access, agent ]: string[]) => (
       { editorType, pageType, accessSite, access, agent });
   return pipe(fromIter(product(editorTypes, pageTypes, accessSites, accesses, agents)), map(converter));
@@ -59,9 +50,7 @@ function templateArgsToURL(urlTemplate: string, args: any) {
     const missing = keys.find(key => !args.hasOwnProperty(key));
     throw new Error(`${urlTemplate} not provided with "${missing}" key`);
   }
-  let url = `${BASE_URL}${dashCaseToCamel(urlTemplate)}`;
-  url = url.replace(/{[^}]+}/g, s => args[dashCaseToCamel(s.slice(1, -1))]);
-  return url || fetchJSON(url);
+  return `${BASE_URL}${dashCaseToCamel(urlTemplate)}`.replace(/{[^}]+}/g, s => args[dashCaseToCamel(s.slice(1, -1))]);
 }
 
 function endpointYearArgsToURL(endpoint: string, year: number, args: any) {
@@ -86,6 +75,14 @@ function endpointYearProjectToData(endpoint: string, year: number, project: stri
 }
 
 if (require.main === module) {
+  function myflatmap<T, U>(f: (value: T, index?: number, array?: T[]) => U, arr: T[]) {
+    let ret: U[] = [];
+    arr.forEach((v, i, arr) => ret = ret.concat(f(v, i, arr)));
+    return ret;
+  }
+  let codes = new Set([...myflatmap(
+      s => (s.match(/{[^}]+}/g) || []).map(s => s.slice(1, -1).replace(/-(.)/g, (_, c) => c.toUpperCase())), URLS) ]);
+
   (async function main() {
     // var yearly = await downloadEditedPagesDataHelper('en', 'user', 'content', 2017);
     // writeFileSync('yearly.json', JSON.stringify(yearly, null, 1));
