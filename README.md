@@ -23,7 +23,8 @@ We wish as much to understand the world through Wikipedia as to understand Wikip
     - `editor-type` includes `anonymous` or `user` (I don't care about bots)
     - `page-type` includes `content` and `non-content`
     - (`activity-level` = `all-activity-levels`)
-    - (`granularity` = `daily)
+    - (`granularity` = `daily`)
+- (Maybe the number of daily *edits* (i.e., multiple edits are possible per page))
 - (Maybe the number of daily *new* pages?)
 - The number of daily active editors
   - `get /metrics/editors/aggregate/{project}/{editor-type}/{page-type}/{activity-level}/{granularity}/{start}/{end}` where
@@ -33,6 +34,7 @@ We wish as much to understand the world through Wikipedia as to understand Wikip
     - `access` includes `desktop`, `mobile-app`, `mobile-web`
     - `agent` = `user` (don't care about `spiders`)
     - `granularity` = `hourly`
+- I also think I want to record the daily list of top-100 pages that saw most edits.
 
 ## Languages
 

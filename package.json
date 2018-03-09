@@ -19,6 +19,15 @@
   "homepage": "https://github.com/fasiha/WikiAtRisk#readme",
   "devDependencies": {
     "@types/node": "^9.4.6",
+    "@types/node-fetch": "^1.6.7",
     "typescript": "^2.7.2"
+  },
+  "dependencies": {
+    "callbag": "^1.0.3",
+    "callbag-basics": "^2.0.1",
+    "callbag-throttle": "^1.0.2",
+    "cartesian-product-generator": "^1.1.0",
+    "lodash.product": "^18.1.16",
+    "node-fetch": "^2.0.0"
   }
 }
