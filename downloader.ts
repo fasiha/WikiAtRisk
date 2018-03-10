@@ -2,7 +2,7 @@ import {Callbag, Factory, Operator} from 'callbag';
 import {product} from 'cartesian-product-generator';
 import {existsSync, readFileSync, writeFileSync} from 'fs';
 import fetch from 'node-fetch';
-const { forEach, fromIter, take, map, pipe } = require('callbag-basics');
+const { pipe, fromIter, concat, filter, map, forEach } = require('callbag-basics');
 const throttle: Operator = require('callbag-throttle');
 
 const BASE_URL = 'https://wikimedia.org/api/rest_v1';
@@ -131,27 +131,25 @@ if (require.main === module) {
 
     // const outerProduct = product(years, shortUrls, wikilangsdata.slice(0, 50).map(o => o.prefix + '.wikipedia'));
     const outerProduct = product([ 2016, 2015, 2014, 2013 ], [ 'edits' ], [ 'en.wikipedia' ]);
-
-    for (let [year, endpoint, project] of outerProduct) {
-      pipe(
-          endpointYearProjectToURLs(endpoint, year, project),
-          throttle(1000),
-          forEach(async (url: string) => {
-            // console.log(url);
-            // return;
-            try {
-              const exists = await db.get(url);
-            } catch (err) {
-              if (err.type === 'NotFoundError') {
-                console.log(url);
-                // db.put(url, JSON.stringify(await fetchJSON(url)));
-              } else {
-                throw err;
-              }
+    const sources = concat(...[...outerProduct].map(
+        ([ year, endpoint, project ]: any) => endpointYearProjectToURLs(endpoint, year, project)));
+    pipe(
+        sources,
+        throttle(MINIMUM_THROTTLE_DELAY_MS),
+        // will throttle saved data too :(!!!)
+        forEach(async (url: string) => {
+          try {
+            const exists = await db.get(url);
+          } catch (err) {
+            if (err.type === 'NotFoundError') {
+              console.log(url);
+              // db.put(url, JSON.stringify(await fetchJSON(url)));
+            } else {
+              throw err;
             }
-          }),
-      );
-    }
+          }
+        }),
+    );
   })();
 }
 /*
