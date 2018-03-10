@@ -8,22 +8,11 @@ if (require.main === module) {
   commands = {
     ls : {
       f : (async () => {
-        var stream = db.createReadStream();
-        pipe(fromStream(stream), forEach(x => console.log(x.key + '=>' + JSON.stringify(x.value))));
+        pipe(fromStream(db.createReadStream()), forEach(x => console.log(x.key + '=>' + JSON.stringify(x.value))));
       })
     },
-    rmalllll : {
-      f : (async () => {
-        var stream = db.createReadStream();
-        pipe(fromStream(stream), forEach(({ key, value }) => db.del(key)));
-      })
-    },
-    keys : {
-      f : (async () => {
-        var stream = db.createReadStream();
-        pipe(fromStream(stream), forEach(x => console.log('KEY=' + x.key)));
-      })
-    },
+    rmalllll : { f : (async () => { pipe(fromStream(db.createKeyStream()), forEach(key => db.del(key))); }) },
+    keys : { f : (async () => { pipe(fromStream(db.createKeyStream()), forEach(x => console.log('KEY=' + x))); }) },
     get : {
       f : (async () => {
         let key = process.argv[3];
