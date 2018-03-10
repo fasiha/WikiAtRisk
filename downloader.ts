@@ -6,6 +6,7 @@ const { forEach, fromIter, take, map, pipe } = require('callbag-basics');
 const throttle: Operator = require('callbag-throttle');
 
 const BASE_URL = 'https://wikimedia.org/api/rest_v1';
+const MINIMUM_THROTTLE_DELAY_MS = 15; // 15 -> 66 requests per second
 
 type EditorType = 'anonymous'|'group-bot'|'name-bot'|'user'|'all-editor-types';
 type PageType = 'content'|'non-content'|'all-page-types';
@@ -87,7 +88,7 @@ if (require.main === module) {
   (async function main() {
     let codes = new Set([...myflatmap(
         s => (s.match(/{[^}]+}/g) || []).map(s => s.slice(1, -1).replace(/-(.)/g, (_, c) => c.toUpperCase())), URLS) ]);
-    console.log(codes);
+    // console.log(codes);
 
     const level = require('level');
     const db = level('./past-yearly-data');
@@ -107,13 +108,32 @@ if (require.main === module) {
     // 2001-2019 (18 years), nine endpoints, fifty to a hundred wikipedias
     const shortUrls = URLS.map(s => s.slice(0, s.indexOf('{')).split('/').slice(2, 4).filter(x => x.length).join('/'));
     const years = [...range(2001, 2018) ].reverse();
-    const outerProduct = product(years, shortUrls, wikilangsdata.slice(0, 50).map(o => o.prefix + '.wikipedia'));
+
+    // const outerProduct = product(years, shortUrls, wikilangsdata.slice(0, 50).map(o => o.prefix + '.wikipedia'));
+    const outerProduct: any = [ [ 2017, 'edits', 'en.wikipedia' ] ];
+
     for (let [year, endpoint, project] of outerProduct) {
-      pipe(endpointYearProjectToURLs(endpoint, year, project), forEach(async (url: string) => {
-        console.log(url);
-        // const exists = await db.get(url);
-        // if (!exists) { db.put(url, await fetchJSON(url)); }
-      }));
+      pipe(
+          endpointYearProjectToURLs(endpoint, year, project),
+          throttle(MINIMUM_THROTTLE_DELAY_MS),
+          forEach(async (url: string) => {
+            try {
+              const exists = await db.get(url);
+            } catch (err) {
+              if (err.type === 'NotFoundError') {
+                console.log('get ' + url);
+                const value = JSON.stringify(await fetchJSON(url));
+                db.put(url, value);
+              } else {
+                throw err;
+              }
+            }
+          }),
+      );
     }
   })();
 }
+/*
+0.2 s to list 96 URLs to hit, no throttle
+1.9 s to list, with 15 ms delay
+*/
