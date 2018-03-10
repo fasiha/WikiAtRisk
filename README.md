@@ -13,6 +13,24 @@ or some combination thereof, for at least the top fifty busiest (identified loos
 
 We wish as much to understand the world through Wikipedia as to understand Wikipedia through the world.
 
+## Yeah, yeah, I know, how do I run this?
+After installing [Git](https://git-scm.com/) and [Node.js](https://nodejs.org/), run the following in your command prompt (each line beginning with a dollar sign, but don't type the dollar sign):
+```
+$ git clone https://github.com/fasiha/WikiAtRisk.git
+$ cd WikiAtRisk
+$ npm install
+$ npm run build
+```
+The above will clone this code repository into a new directory, enter that directory, intall the JavaScript dependencies, and build the TypeScript source to JavaScript.
+
+Right now, the only thing this repo does is download a ton of Wikipedia data into a Leveldb database. To get that started, run:
+```
+$ node downloader.js
+```
+This fetches a detailed list of [Wikipedia's languages](https://github.com/fasiha/wikipedia-languages/) and then starts downloading several years worth of very interesting data from several Wikipedia projects. It saves the results in the Level database, so feel free to stop and restart the script till you get all the data. The script rate-limits itself so it might take an hour or two.
+
+Meanwhile, if you know TypeScript, you can read [downloader.ts](downloader.ts) to see what all it's doing.
+
 ## Data of interest
 
 ([source](https://wikimedia.org/api/rest_v1/#/))
