@@ -4,9 +4,10 @@ import {existsSync, readFileSync, writeFileSync} from 'fs';
 import fetch from 'node-fetch';
 const { pipe, fromIter, concat, filter, map, forEach } = require('callbag-basics');
 const throttle: Operator = require('callbag-throttle');
+const filterPromise: Operator = require('callbag-filter-promise');
 
 const BASE_URL = 'https://wikimedia.org/api/rest_v1';
-const MINIMUM_THROTTLE_DELAY_MS = 1000; // 15 -> 66 requests per second
+const MINIMUM_THROTTLE_DELAY_MS = 15; // 15 -> 66 requests per second
 
 type EditorType = 'anonymous'|'group-bot'|'name-bot'|'user'|'all-editor-types';
 type PageType = 'content'|'non-content'|'all-page-types';
@@ -93,17 +94,7 @@ if (require.main === module) {
     arr.forEach((v, i, arr) => ret = ret.concat(f(v, i, arr)));
     return ret;
   }
-  async function fetchJSON(url: string) {
-    let res: any;
-    // try {
-    res = await fetch(url);
-    // } catch (e) {
-    // console.error(e);
-    // process.exit();
-    // }
-    if (res.status >= 400) { throw new Error(`HTTP status ${res.status} received from ${url}`); }
-    return res.json();
-  }
+  async function fetchJSON(url: string) { return fetch(url).then(res => res.json()); }
   (async function main() {
     let codes = new Set([...myflatmap(
         s => (s.match(/{[^}]+}/g) || []).map(s => s.slice(1, -1).replace(/-(.)/g, (_, c) => c.toUpperCase())), URLS) ]);
@@ -129,25 +120,25 @@ if (require.main === module) {
     const shortUrls = URLS.map(s => s.slice(0, s.indexOf('{')).split('/').slice(2, 4).filter(x => x.length).join('/'));
     const years = [...range(2001, 2018) ].reverse();
 
-    // const outerProduct = product(years, shortUrls, wikilangsdata.slice(0, 50).map(o => o.prefix + '.wikipedia'));
-    const outerProduct = product([ 2016, 2015, 2014, 2013 ], [ 'edits' ], [ 'en.wikipedia' ]);
+    const outerProduct = product(years, shortUrls, wikilangsdata.slice(0, 50).map(o => o.prefix + '.wikipedia'));
+    // const outerProduct = product([ 2016, 2015, 2014, 2013 ], [ 'edits' ], [ 'en.wikipedia' ]);
     const sources = concat(...[...outerProduct].map(
         ([ year, endpoint, project ]: any) => endpointYearProjectToURLs(endpoint, year, project)));
     pipe(
         sources,
-        throttle(MINIMUM_THROTTLE_DELAY_MS),
-        // will throttle saved data too :(!!!)
-        forEach(async (url: string) => {
+        filterPromise(async (url: string) => {
           try {
-            const exists = await db.get(url);
+            await db.get(url);
+            return false;
           } catch (err) {
-            if (err.type === 'NotFoundError') {
-              console.log(url);
-              // db.put(url, JSON.stringify(await fetchJSON(url)));
-            } else {
-              throw err;
-            }
+            if (err.type !== 'NotFoundError') { throw err; }
           }
+          return true;
+        }),
+        throttle(MINIMUM_THROTTLE_DELAY_MS),
+        forEach(async (url: string) => {
+          console.log(url);
+          db.put(url, JSON.stringify(await fetchJSON(url)));
         }),
     );
   })();
