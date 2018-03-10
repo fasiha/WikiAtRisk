@@ -6,7 +6,7 @@ const { forEach, fromIter, take, map, pipe } = require('callbag-basics');
 const throttle: Operator = require('callbag-throttle');
 
 const BASE_URL = 'https://wikimedia.org/api/rest_v1';
-const MINIMUM_THROTTLE_DELAY_MS = 15; // 15 -> 66 requests per second
+const MINIMUM_THROTTLE_DELAY_MS = 1000; // 15 -> 66 requests per second
 
 type EditorType = 'anonymous'|'group-bot'|'name-bot'|'user'|'all-editor-types';
 type PageType = 'content'|'non-content'|'all-page-types';
@@ -26,21 +26,34 @@ const URLS = [
   '/metrics/pageviews/aggregate/{project}/{access}/{agent}/{granularity}/{start}/{end}',
 ];
 
-function allArgsGenerator() {
-  const editorTypes = 'anonymous,group-bot,name-bot,user'.split(',');
-  const pageTypes = 'content,non-content'.split(',');
-  const accessSites = 'desktop-site,mobile-site'.split(',');
-  const accesses = 'desktop,mobile-app,mobile-web'.split(',');
-  const agents = 'user,spider'.split(',');
-  const converter = ([ editorType, pageType, accessSite, access, agent ]: string[]) => (
-      { editorType, pageType, accessSite, access, agent });
-  return pipe(fromIter(product(editorTypes, pageTypes, accessSites, accesses, agents)), map(converter));
+function allArgsGenerator(keysWanted: string[]) {
+  const all: any = {
+    editorType : 'anonymous,group-bot,name-bot,user'.split(','),
+    pageType : 'content,non-content'.split(','),
+    accessSite : 'desktop-site,mobile-site'.split(','),
+    access : 'desktop,mobile-app,mobile-web'.split(','),
+    agent : 'user,spider'.split(',')
+  };
+  if (!keysWanted.every((key: string) => all[key])) {
+    throw new Error('Keys not found to build arguments generator:' + keysWanted.find((key: string) => !all[key]));
+  }
+  const results = keysWanted.map(key => all[key]);
+  const convertArrayToObj = (args: string[]) => {
+    let o: any = {};
+    args.forEach((arg, i) => o[keysWanted[i]] = arg);
+    return o;
+  };
+  return (map(convertArrayToObj))(fromIter(product(...results)));
 }
 
 function dashCaseToCamel(s: string) { return s.replace(/-(.)/g, (_, c) => c.toUpperCase()); }
 
+function urlTemplateToKeys(template: string) {
+  return (template.match(/{[^}]+}/g) || []).map(s => s.slice(1, -1)).map(dashCaseToCamel);
+}
+
 function templateArgsToURL(urlTemplate: string, args: any) {
-  const keys = (urlTemplate.match(/{[^}]+}/g) || []).map(s => s.slice(1, -1)).map(dashCaseToCamel);
+  const keys = urlTemplateToKeys(urlTemplate);
   if (!keys.every(key => args.hasOwnProperty(key))) {
     const missing = keys.find(key => !args.hasOwnProperty(key));
     throw new Error(`${urlTemplate} not provided with "${missing}" key`);
@@ -48,30 +61,30 @@ function templateArgsToURL(urlTemplate: string, args: any) {
   return `${BASE_URL}${urlTemplate}`.replace(/{[^}]+}/g, s => args[dashCaseToCamel(s.slice(1, -1))]);
 }
 
-function endpointYearArgsToURL(endpoint: string, year: number, args: any) {
+function endpointYearProjectToURLs(endpoint: string, year: number, project: string) {
   const keyRegExp = new RegExp(`/${endpoint}/`);
   const templates = URLS.filter(url => keyRegExp.test(url));
   if (templates.length !== 1) { throw new Error(`${templates.length} templates found to match endpoint ${endpoint}`); }
   const template = templates[0];
-  args.start = `${year}0101`;
-  args.end = `${year + 1}0101`;
-  if (args.granularity === 'hourly') {
-    args.start += '00';
-    args.end += '00';
+
+  const keysNeeded = urlTemplateToKeys(template);
+
+  let start = `${year}0101`;
+  let end = `${year + 1}0101`;
+  const activityLevel = 'all-activity-levels';
+  const granularity = 'daily';
+  // const granularity = endpoint.indexOf('pageviews') >= 0 ? 'hourly' : 'daily'; // FIXME
+  if (granularity === ('hourly' as any)) {
+    start += '00';
+    end += '00';
     throw new Error('Hourly might deliver incomplete (5000 element only) set, with a next field.');
   }
-  return templateArgsToURL(template, args);
-}
 
-function endpointYearProjectToURLs(endpoint: string, year: number, project: string) {
-  const allArgs = allArgsGenerator();
-  return pipe(allArgs, map((args: any) => {
-    args.project = project;
-    args.activityLevel = 'all-activity-levels';
-    // args.granularity = endpoint.indexOf('pageviews') >= 0 ? 'hourly' : 'daily'; // FIXME
-    args.granularity = 'daily';
-    return endpointYearArgsToURL(endpoint, year, args);
-  }));
+  let baseArgs = { project, activityLevel, granularity, start, end };
+  let baseKeys = new Set(Object.keys(baseArgs));
+  const allArgs = allArgsGenerator(keysNeeded.filter(needed => !baseKeys.has(needed)));
+  const mapper = map((args: any) => templateArgsToURL(template, Object.assign(baseArgs, args)));
+  return mapper(allArgs);
 }
 
 if (require.main === module) {
@@ -81,7 +94,13 @@ if (require.main === module) {
     return ret;
   }
   async function fetchJSON(url: string) {
-    const res = await fetch(url);
+    let res: any;
+    // try {
+    res = await fetch(url);
+    // } catch (e) {
+    // console.error(e);
+    // process.exit();
+    // }
     if (res.status >= 400) { throw new Error(`HTTP status ${res.status} received from ${url}`); }
     return res.json();
   }
@@ -91,7 +110,8 @@ if (require.main === module) {
     // console.log(codes);
 
     const level = require('level');
-    const db = level('./past-yearly-data');
+    const db
+        = level('./past-yearly-data', { cacheSize : 8 * 1024 * 1024 * 128, writeBufferSize : 4 * 1024 * 1024 * 128 });
     const range = require('range-generator');
 
     const WIKILANGSFILE = 'wikilangs.json';
@@ -110,20 +130,21 @@ if (require.main === module) {
     const years = [...range(2001, 2018) ].reverse();
 
     // const outerProduct = product(years, shortUrls, wikilangsdata.slice(0, 50).map(o => o.prefix + '.wikipedia'));
-    const outerProduct: any = [ [ 2017, 'edits', 'en.wikipedia' ] ];
+    const outerProduct = product([ 2016, 2015, 2014, 2013 ], [ 'edits' ], [ 'en.wikipedia' ]);
 
     for (let [year, endpoint, project] of outerProduct) {
       pipe(
           endpointYearProjectToURLs(endpoint, year, project),
-          throttle(MINIMUM_THROTTLE_DELAY_MS),
+          throttle(1000),
           forEach(async (url: string) => {
+            // console.log(url);
+            // return;
             try {
               const exists = await db.get(url);
             } catch (err) {
               if (err.type === 'NotFoundError') {
-                console.log('get ' + url);
-                const value = JSON.stringify(await fetchJSON(url));
-                db.put(url, value);
+                console.log(url);
+                // db.put(url, JSON.stringify(await fetchJSON(url)));
               } else {
                 throw err;
               }
@@ -134,6 +155,6 @@ if (require.main === module) {
   })();
 }
 /*
-0.2 s to list 96 URLs to hit, no throttle
+0.2 s to list 96 URLs to hit (one endpoint), no throttle
 1.9 s to list, with 15 ms delay
 */
