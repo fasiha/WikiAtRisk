@@ -9,12 +9,7 @@ const filterPromise: Operator = require('callbag-filter-promise');
 const BASE_URL = 'https://wikimedia.org/api/rest_v1';
 const MINIMUM_THROTTLE_DELAY_MS = 30; // 15 -> 66 requests per second
 
-type EditorType = 'anonymous'|'group-bot'|'name-bot'|'user'|'all-editor-types';
-type PageType = 'content'|'non-content'|'all-page-types';
-type AccessSite = 'desktop-site'|'mobile-site'|'all-sites';
-type Access = 'desktop'|'mobile-app'|'mobile-web'|'all-access';
-type Agent = 'user'|'spider'|'all-agents';
-
+// This list of endpoints is copied-pasted from https://wikimedia.org/api/rest_v1/
 const URLS = [
   '/metrics/edited-pages/aggregate/{project}/{editor-type}/{page-type}/{activity-level}/{granularity}/{start}/{end}',
   '/metrics/edits/aggregate/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
@@ -27,6 +22,13 @@ const URLS = [
   '/metrics/pageviews/aggregate/{project}/{access}/{agent}/{granularity}/{start}/{end}',
   '/metrics/edited-pages/top-by-edits/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
 ];
+
+// These types aren't used but are helpful to refer to. They're extracted from https://wikimedia.org/api/rest_v1/ also
+type EditorType = 'anonymous'|'group-bot'|'name-bot'|'user'|'all-editor-types';
+type PageType = 'content'|'non-content'|'all-page-types';
+type AccessSite = 'desktop-site'|'mobile-site'|'all-sites';
+type Access = 'desktop'|'mobile-app'|'mobile-web'|'all-access';
+type Agent = 'user'|'spider'|'all-agents';
 
 function allArgsGenerator(keysWanted: string[]) {
   const all: any = {
