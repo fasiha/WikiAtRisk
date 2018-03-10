@@ -1,6 +1,6 @@
 import {Callbag, Factory, Operator} from 'callbag';
 import {product} from 'cartesian-product-generator';
-import {writeFileSync} from 'fs';
+import {existsSync, readFileSync, writeFileSync} from 'fs';
 import fetch from 'node-fetch';
 const { forEach, fromIter, take, map, pipe } = require('callbag-basics');
 const throttle: Operator = require('callbag-throttle');
@@ -36,12 +36,6 @@ function allArgsGenerator() {
   return pipe(fromIter(product(editorTypes, pageTypes, accessSites, accesses, agents)), map(converter));
 }
 
-async function fetchJSON(url: string) {
-  const res = await fetch(url);
-  if (res.status >= 400) { throw new Error(`HTTP status ${res.status} received from ${url}`); }
-  return res.json();
-}
-
 function dashCaseToCamel(s: string) { return s.replace(/-(.)/g, (_, c) => c.toUpperCase()); }
 
 function templateArgsToURL(urlTemplate: string, args: any) {
@@ -50,7 +44,7 @@ function templateArgsToURL(urlTemplate: string, args: any) {
     const missing = keys.find(key => !args.hasOwnProperty(key));
     throw new Error(`${urlTemplate} not provided with "${missing}" key`);
   }
-  return `${BASE_URL}${dashCaseToCamel(urlTemplate)}`.replace(/{[^}]+}/g, s => args[dashCaseToCamel(s.slice(1, -1))]);
+  return `${BASE_URL}${urlTemplate}`.replace(/{[^}]+}/g, s => args[dashCaseToCamel(s.slice(1, -1))]);
 }
 
 function endpointYearArgsToURL(endpoint: string, year: number, args: any) {
@@ -63,14 +57,13 @@ function endpointYearArgsToURL(endpoint: string, year: number, args: any) {
   return templateArgsToURL(template, args);
 }
 
-function endpointYearProjectToData(endpoint: string, year: number, project: string) {
+function endpointYearProjectToURLs(endpoint: string, year: number, project: string) {
   const allArgs = allArgsGenerator();
-  pipe(allArgs, throttle(1000), forEach((args: any) => {
+  return pipe(allArgs, map((args: any) => {
     args.project = project;
     args.activityLevel = 'all-activity-levels';
     args.granularity = endpoint.indexOf('pageviews') >= 0 ? 'hourly' : 'daily';
-
-    console.log(endpointYearArgsToURL(endpoint, year, args));
+    return endpointYearArgsToURL(endpoint, year, args);
   }));
 }
 
@@ -80,13 +73,40 @@ if (require.main === module) {
     arr.forEach((v, i, arr) => ret = ret.concat(f(v, i, arr)));
     return ret;
   }
-  let codes = new Set([...myflatmap(
-      s => (s.match(/{[^}]+}/g) || []).map(s => s.slice(1, -1).replace(/-(.)/g, (_, c) => c.toUpperCase())), URLS) ]);
-
+  async function fetchJSON(url: string) {
+    const res = await fetch(url);
+    if (res.status >= 400) { throw new Error(`HTTP status ${res.status} received from ${url}`); }
+    return res.json();
+  }
   (async function main() {
-    // var yearly = await downloadEditedPagesDataHelper('en', 'user', 'content', 2017);
-    // writeFileSync('yearly.json', JSON.stringify(yearly, null, 1));
+    let codes = new Set([...myflatmap(
+        s => (s.match(/{[^}]+}/g) || []).map(s => s.slice(1, -1).replace(/-(.)/g, (_, c) => c.toUpperCase())), URLS) ]);
     console.log(codes);
-    endpointYearProjectToData('editors', 2017, 'en.wikipedia');
+
+    const level = require('level');
+    const db = level('./past-yearly-data');
+    const range = require('range-generator');
+
+    const WIKILANGSFILE = 'wikilangs.json';
+    let wikilangsdata: any[];
+    if (existsSync(WIKILANGSFILE)) {
+      wikilangsdata = JSON.parse(readFileSync(WIKILANGSFILE, 'utf8'));
+    } else {
+      const wikilangs = require('wikipedia-languages');
+      wikilangsdata = await wikilangs();
+      writeFileSync(WIKILANGSFILE, JSON.stringify(wikilangsdata));
+    }
+    wikilangsdata.sort((a, b) => b.users - a.users);
+
+    // 2001-2019 (18 years), nine endpoints, fifty to a hundred wikipedias
+    const shortUrls = URLS.map(s => s.slice(0, s.indexOf('{')).split('/').slice(2, 4).filter(x => x.length).join('/'));
+    const outerProduct = product([...range(2001, 2018) ], shortUrls, wikilangsdata.slice(0, 50).map(o => o.prefix));
+    for (let [year, endpoint, prefix] of outerProduct) {
+      pipe(endpointYearProjectToURLs(endpoint, year, prefix + '.wikipedia'), forEach(async (url: string) => {
+        console.log(url);
+        // const exists = await db.get(url);
+        // if (!exists) { db.put(url, await fetchJSON(url)); }
+      }));
+    }
   })();
 }
