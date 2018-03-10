@@ -12,7 +12,7 @@ if (require.main === module) {
         pipe(fromStream(stream), forEach(x => console.log(x.key + '=>' + JSON.stringify(x.value))));
       })
     },
-    rm : {
+    rmalllll : {
       f : (async () => {
         var stream = db.createReadStream();
         pipe(fromStream(stream), forEach(({ key, value }) => db.del(key)));
@@ -32,6 +32,16 @@ if (require.main === module) {
           return;
         }
         console.log(key + '=>' + await db.get(key));
+      })
+    },
+    rm : {
+      f : (async () => {
+        let key = process.argv[3];
+        if (!key) {
+          console.error('Need key');
+          return;
+        }
+        db.del(key);
       })
     },
   };

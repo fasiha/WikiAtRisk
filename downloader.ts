@@ -94,7 +94,6 @@ if (require.main === module) {
     arr.forEach((v, i, arr) => ret = ret.concat(f(v, i, arr)));
     return ret;
   }
-  async function fetchJSON(url: string) { return fetch(url).then(res => res.json()); }
   (async function main() {
     let codes = new Set([...myflatmap(
         s => (s.match(/{[^}]+}/g) || []).map(s => s.slice(1, -1).replace(/-(.)/g, (_, c) => c.toUpperCase())), URLS) ]);
@@ -137,12 +136,8 @@ if (require.main === module) {
         throttle(MINIMUM_THROTTLE_DELAY_MS),
         forEach(async (url: string) => {
           console.log(url);
-          db.put(url, JSON.stringify(await fetchJSON(url)));
+          db.put(url, await fetch(url).then(res => res.text()));
         }),
     );
   })();
 }
-/*
-0.2 s to list 96 URLs to hit (one endpoint), no throttle
-1.9 s to list, with 15 ms delay
-*/
