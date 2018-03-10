@@ -25,6 +25,7 @@ const URLS = [
   '/metrics/bytes-difference/absolute/aggregate/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
   '/metrics/unique-devices/{project}/{access-site}/{granularity}/{start}/{end}',
   '/metrics/pageviews/aggregate/{project}/{access}/{agent}/{granularity}/{start}/{end}',
+  '/metrics/edited-pages/top-by-edits/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
 ];
 
 function allArgsGenerator(keysWanted: string[]) {
