@@ -7,7 +7,7 @@ const throttle: Operator = require('callbag-throttle');
 const filterPromise: Operator = require('callbag-filter-promise');
 
 const BASE_URL = 'https://wikimedia.org/api/rest_v1';
-const MINIMUM_THROTTLE_DELAY_MS = 15; // 15 -> 66 requests per second
+const MINIMUM_THROTTLE_DELAY_MS = 30; // 15 -> 66 requests per second
 
 type EditorType = 'anonymous'|'group-bot'|'name-bot'|'user'|'all-editor-types';
 type PageType = 'content'|'non-content'|'all-page-types';
@@ -101,8 +101,7 @@ if (require.main === module) {
     // console.log(codes);
 
     const level = require('level');
-    const db
-        = level('./past-yearly-data', { cacheSize : 8 * 1024 * 1024 * 128, writeBufferSize : 4 * 1024 * 1024 * 128 });
+    const db = level('./past-yearly-data');
     const range = require('range-generator');
 
     const WIKILANGSFILE = 'wikilangs.json';
