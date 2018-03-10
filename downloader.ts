@@ -54,6 +54,11 @@ function endpointYearArgsToURL(endpoint: string, year: number, args: any) {
   const template = templates[0];
   args.start = `${year}0101`;
   args.end = `${year + 1}0101`;
+  if (args.granularity === 'hourly') {
+    args.start += '00';
+    args.end += '00';
+    throw new Error('Hourly might deliver incomplete (5000 element only) set, with a next field.');
+  }
   return templateArgsToURL(template, args);
 }
 
@@ -62,7 +67,8 @@ function endpointYearProjectToURLs(endpoint: string, year: number, project: stri
   return pipe(allArgs, map((args: any) => {
     args.project = project;
     args.activityLevel = 'all-activity-levels';
-    args.granularity = endpoint.indexOf('pageviews') >= 0 ? 'hourly' : 'daily';
+    // args.granularity = endpoint.indexOf('pageviews') >= 0 ? 'hourly' : 'daily'; // FIXME
+    args.granularity = 'daily';
     return endpointYearArgsToURL(endpoint, year, args);
   }));
 }
@@ -96,13 +102,14 @@ if (require.main === module) {
       wikilangsdata = await wikilangs();
       writeFileSync(WIKILANGSFILE, JSON.stringify(wikilangsdata));
     }
-    wikilangsdata.sort((a, b) => b.users - a.users);
+    wikilangsdata.sort((a, b) => b.activeusers - a.activeusers);
 
     // 2001-2019 (18 years), nine endpoints, fifty to a hundred wikipedias
     const shortUrls = URLS.map(s => s.slice(0, s.indexOf('{')).split('/').slice(2, 4).filter(x => x.length).join('/'));
-    const outerProduct = product([...range(2001, 2018) ], shortUrls, wikilangsdata.slice(0, 50).map(o => o.prefix));
-    for (let [year, endpoint, prefix] of outerProduct) {
-      pipe(endpointYearProjectToURLs(endpoint, year, prefix + '.wikipedia'), forEach(async (url: string) => {
+    const years = [...range(2001, 2018) ].reverse();
+    const outerProduct = product(years, shortUrls, wikilangsdata.slice(0, 50).map(o => o.prefix + '.wikipedia'));
+    for (let [year, endpoint, project] of outerProduct) {
+      pipe(endpointYearProjectToURLs(endpoint, year, project), forEach(async (url: string) => {
         console.log(url);
         // const exists = await db.get(url);
         // if (!exists) { db.put(url, await fetchJSON(url)); }
