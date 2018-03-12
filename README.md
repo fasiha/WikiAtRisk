@@ -31,6 +31,8 @@ This fetches a detailed list of [Wikipedia's languages](https://github.com/fasih
 
 Meanwhile, if you know TypeScript, you can read [downloader.ts](downloader.ts) to see what all it's doing.
 
+**Caveat** If you encounter a strange error about "RangeError: Maximum call stack size exceeded", this is an aspect of Node.js that bites when using heavily-recursive functions without any asynchronous operations that let Node reset the call stack—which *only* happens during testing mode (i.e., when one is just printing all the URLs to be requested, without actually requesting them (async `fetch`) or checking a database (async `get`)). This is a "bug" that strikes this codebase when in testing and not in production. See a [StackOverflow example](https://stackoverflow.com/questions/20936486/node-js-maximum-call-stack-size-exceeded#20999077).
+
 ## Data of interest
 
 ([source](https://wikimedia.org/api/rest_v1/#/))

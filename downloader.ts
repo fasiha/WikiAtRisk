@@ -5,21 +5,22 @@ import fetch from 'node-fetch';
 const { pipe, fromIter, concat, filter, map, forEach } = require('callbag-basics');
 const throttle: Operator = require('callbag-throttle');
 const filterPromise: Operator = require('callbag-filter-promise');
+const flatten: Operator = require('callbag-flatten');
 
 const BASE_URL = 'https://wikimedia.org/api/rest_v1';
-const MINIMUM_THROTTLE_DELAY_MS = 30; // 15 -> 66 requests per second
+const MINIMUM_THROTTLE_DELAY_MS = 530; // 15 -> 66 requests per second
 
 // This list of endpoints is copied-pasted from https://wikimedia.org/api/rest_v1/
 const URLS = [
-  '/metrics/edited-pages/aggregate/{project}/{editor-type}/{page-type}/{activity-level}/{granularity}/{start}/{end}',
-  '/metrics/edits/aggregate/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
-  '/metrics/edited-pages/new/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
-  '/metrics/editors/aggregate/{project}/{editor-type}/{page-type}/{activity-level}/{granularity}/{start}/{end}',
-  '/metrics/registered-users/new/{project}/{granularity}/{start}/{end}',
-  '/metrics/bytes-difference/net/aggregate/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
-  '/metrics/bytes-difference/absolute/aggregate/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
-  '/metrics/unique-devices/{project}/{access-site}/{granularity}/{start}/{end}',
-  '/metrics/pageviews/aggregate/{project}/{access}/{agent}/{granularity}/{start}/{end}',
+  // '/metrics/edited-pages/aggregate/{project}/{editor-type}/{page-type}/{activity-level}/{granularity}/{start}/{end}',
+  // '/metrics/edits/aggregate/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
+  // '/metrics/edited-pages/new/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
+  // '/metrics/editors/aggregate/{project}/{editor-type}/{page-type}/{activity-level}/{granularity}/{start}/{end}',
+  // '/metrics/registered-users/new/{project}/{granularity}/{start}/{end}',
+  // '/metrics/bytes-difference/net/aggregate/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
+  // '/metrics/bytes-difference/absolute/aggregate/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
+  // '/metrics/unique-devices/{project}/{access-site}/{granularity}/{start}/{end}',
+  // '/metrics/pageviews/aggregate/{project}/{access}/{agent}/{granularity}/{start}/{end}',
   '/metrics/edited-pages/top-by-edits/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
 ];
 
@@ -29,26 +30,6 @@ type PageType = 'content'|'non-content'|'all-page-types';
 type AccessSite = 'desktop-site'|'mobile-site'|'all-sites';
 type Access = 'desktop'|'mobile-app'|'mobile-web'|'all-access';
 type Agent = 'user'|'spider'|'all-agents';
-
-function allArgsGenerator(keysWanted: string[]) {
-  const all: any = {
-    editorType : 'anonymous,group-bot,name-bot,user'.split(','),
-    pageType : 'content,non-content'.split(','),
-    accessSite : 'desktop-site,mobile-site'.split(','),
-    access : 'desktop,mobile-app,mobile-web'.split(','),
-    agent : 'user,spider'.split(',')
-  };
-  if (!keysWanted.every((key: string) => all[key])) {
-    throw new Error('Keys not found to build arguments generator:' + keysWanted.find((key: string) => !all[key]));
-  }
-  const results = keysWanted.map(key => all[key]);
-  const convertArrayToObj = (args: string[]) => {
-    let o: any = {};
-    args.forEach((arg, i) => o[keysWanted[i]] = arg);
-    return o;
-  };
-  return (map(convertArrayToObj))(fromIter(product(...results)));
-}
 
 function dashCaseToCamel(s: string) { return s.replace(/-(.)/g, (_, c) => c.toUpperCase()); }
 
@@ -65,29 +46,70 @@ function templateArgsToURL(urlTemplate: string, args: any) {
   return `${BASE_URL}${urlTemplate}`.replace(/{[^}]+}/g, s => args[dashCaseToCamel(s.slice(1, -1))]);
 }
 
+function callbagCartesian(...args: Callbag[]) {
+  let bag = map((x: any) => [x])(args[0]);
+  for (let i = 1; i < args.length; i++) {
+    bag = flatten(map((outer: any) => pipe(args[i], map((inner: any) => outer.concat(inner))))(bag))
+  }
+  return bag;
+}
+
+function keysToCallbag(keysNeeded: string[]) {
+  const allCombinations: any = {
+    editorType : 'anonymous,group-bot,name-bot,user'.split(','),
+    pageType : 'content,non-content'.split(','),
+    accessSite : 'desktop-site,mobile-site'.split(','),
+    access : 'desktop,mobile-app,mobile-web'.split(','),
+    agent : 'user,spider'.split(',')
+  };
+  if (!keysNeeded.every(key => allCombinations[key])) {
+    throw new Error(
+        'Key could not be filled in automatically: ' + keysNeeded.find((key: string) => !allCombinations[key]));
+  }
+  if (keysNeeded.length === 0) { return fromIter([ [ {} ] ]); }
+  return map((args: any[]) => args.map((arg, i) => {
+    let ret: any = {};
+    ret[keysNeeded[i]] = arg;
+    return ret;
+  }))(callbagCartesian(...keysNeeded.map(key => fromIter(allCombinations[key]))));
+}
+
 function endpointYearProjectToURLs(endpoint: string, year: number, project: string) {
   const keyRegExp = new RegExp(`/${endpoint}/`);
   const templates = URLS.filter(url => keyRegExp.test(url));
   if (templates.length !== 1) { throw new Error(`${templates.length} templates found to match endpoint ${endpoint}`); }
   const template = templates[0];
 
-  const keysNeeded = urlTemplateToKeys(template);
+  const allKeysNeeded = urlTemplateToKeys(template);
 
-  let start = `${year}0101`;
-  let end = `${year + 1}0101`;
   const activityLevel = 'all-activity-levels';
   const granularity = 'daily';
+  const start = `${year}0101`;
+  const end = `${year + 1}0101`;
   // const granularity = endpoint.indexOf('pageviews') >= 0 ? 'hourly' : 'daily'; // FIXME
   if (granularity === ('hourly' as any)) {
-    start += '00';
-    end += '00';
     throw new Error('Hourly might deliver incomplete (5000 element only) set, with a next field.');
   }
 
   let baseArgs = { project, activityLevel, granularity, start, end };
   let baseKeys = new Set(Object.keys(baseArgs));
-  const allArgs = allArgsGenerator(keysNeeded.filter(needed => !baseKeys.has(needed)));
-  const mapper = map((args: any) => templateArgsToURL(template, Object.assign(baseArgs, args)));
+  let combinationKeysNeeded = allKeysNeeded.filter(needed => !baseKeys.has(needed));
+  let combinationBag = keysToCallbag(combinationKeysNeeded);
+
+  if (endpoint.indexOf('top-by-edits') >= 0) {
+    // The top-by-edits endpoint returns 1.2 MB JSON payloads for annual data, and frequently errors out. Make this
+    // monthly to see if this is more reliable.
+    const leftpad = (x: number) => x < 10 ? '0' + x : x;
+    combinationBag = combinationBag = callbagCartesian(
+        map((month: number) => ({
+          start : `${year}${leftpad(month)}01`,
+          end : month === 12 ? `${year + 1}0101` : `${year}${leftpad(month + 1)}01`
+        }))(fromIter(Array.from(Array(12), (_, i) => i + 1))),
+        combinationBag,
+    );
+  }
+  let allArgs = map((args: any) => Object.assign(baseArgs, ...args))(combinationBag);
+  const mapper = map((args: any) => templateArgsToURL(template, args));
   return mapper(allArgs);
 }
 
@@ -138,8 +160,9 @@ if (require.main === module) {
         }),
         throttle(MINIMUM_THROTTLE_DELAY_MS),
         forEach(async (url: string) => {
-          console.log(url);
+          console.log("asking…");
           db.put(url, await fetch(url).then(res => res.text()));
+          console.log(url);
         }),
     );
   })();
