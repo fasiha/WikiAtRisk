@@ -26,11 +26,11 @@
   "dependencies": {
     "callbag": "^1.0.3",
     "callbag-basics": "^2.0.1",
+    "callbag-cartesian-product": "^2.0.0",
     "callbag-filter-promise": "^1.0.2",
     "callbag-flatten": "^1.0.0",
     "callbag-from-stream": "^1.0.0",
     "callbag-throttle": "^1.0.2",
-    "cartesian-product-generator": "^1.1.0",
     "level": "^3.0.0",
     "lodash.product": "^18.1.16",
     "node-fetch": "^2.0.0",

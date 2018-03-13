@@ -1,11 +1,11 @@
 import {Callbag, Factory, Operator} from 'callbag';
-import {product} from 'cartesian-product-generator';
 import {existsSync, readFileSync, writeFileSync} from 'fs';
 import fetch from 'node-fetch';
 const { pipe, fromIter, concat, filter, map, forEach } = require('callbag-basics');
 const throttle: Operator = require('callbag-throttle');
 const filterPromise: Operator = require('callbag-filter-promise');
 const flatten: Operator = require('callbag-flatten');
+const cartesian = require('callbag-cartesian-product');
 
 const BASE_URL = 'https://wikimedia.org/api/rest_v1';
 const MINIMUM_THROTTLE_DELAY_MS = 530; // 15 -> 66 requests per second
@@ -46,14 +46,6 @@ function templateArgsToURL(urlTemplate: string, args: any) {
   return `${BASE_URL}${urlTemplate}`.replace(/{[^}]+}/g, s => args[dashCaseToCamel(s.slice(1, -1))]);
 }
 
-function callbagCartesian(...args: Callbag[]) {
-  let bag = map((x: any) => [x])(args[0]);
-  for (let i = 1; i < args.length; i++) {
-    bag = flatten(map((outer: any) => pipe(args[i], map((inner: any) => outer.concat(inner))))(bag))
-  }
-  return bag;
-}
-
 function keysToCallbag(keysNeeded: string[]) {
   const allCombinations: any = {
     editorType : 'anonymous,group-bot,name-bot,user'.split(','),
@@ -71,7 +63,7 @@ function keysToCallbag(keysNeeded: string[]) {
     let ret: any = {};
     ret[keysNeeded[i]] = arg;
     return ret;
-  }))(callbagCartesian(...keysNeeded.map(key => fromIter(allCombinations[key]))));
+  }))(cartesian(...keysNeeded.map(key => fromIter(allCombinations[key]))));
 }
 
 function endpointYearProjectToURLs(endpoint: string, year: number, project: string) {
@@ -100,7 +92,8 @@ function endpointYearProjectToURLs(endpoint: string, year: number, project: stri
     // The top-by-edits endpoint returns 1.2 MB JSON payloads for annual data, and frequently errors out. Make this
     // monthly to see if this is more reliable.
     const leftpad = (x: number) => x < 10 ? '0' + x : x;
-    combinationBag = combinationBag = callbagCartesian(
+    combinationBag = cartesian(
+        false,
         map((month: number) => ({
           start : `${year}${leftpad(month)}01`,
           end : month === 12 ? `${year + 1}0101` : `${year}${leftpad(month + 1)}01`
@@ -119,6 +112,7 @@ if (require.main === module) {
     arr.forEach((v, i, arr) => ret = ret.concat(f(v, i, arr)));
     return ret;
   }
+  function iterCartesian(...args: any[]) { return cartesian(...args.map(fromIter) as any); }
   (async function main() {
     let codes = new Set([...myflatmap(
         s => (s.match(/{[^}]+}/g) || []).map(s => s.slice(1, -1).replace(/-(.)/g, (_, c) => c.toUpperCase())), URLS) ]);
@@ -143,12 +137,12 @@ if (require.main === module) {
     const shortUrls = URLS.map(s => s.slice(0, s.indexOf('{')).split('/').slice(2, 4).filter(x => x.length).join('/'));
     const years = [...range(2001, 2018) ].reverse();
 
-    const outerProduct = product(years, shortUrls, wikilangsdata.slice(0, 50).map(o => o.prefix + '.wikipedia'));
-    // const outerProduct = product([ 2016, 2015, 2014, 2013 ], [ 'edits' ], [ 'en.wikipedia' ]);
-    const sources = concat(...[...outerProduct].map(
-        ([ year, endpoint, project ]: any) => endpointYearProjectToURLs(endpoint, year, project)));
+    const outerProduct = iterCartesian(years, shortUrls, wikilangsdata.slice(0, 50).map(o => o.prefix + '.wikipedia'));
+    const sources = flatten(
+        map(([ year, endpoint, project ]: any) => endpointYearProjectToURLs(endpoint, year, project))(outerProduct));
     pipe(
         sources,
+        // forEach((x: any) => console.log(x)),
         filterPromise(async (url: string) => {
           try {
             await db.get(url);
