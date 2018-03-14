@@ -27,39 +27,38 @@ Right now, the only thing this repo does is download a ton of Wikipedia data int
 ```
 $ node downloader.js
 ```
-This fetches a detailed list of [Wikipedia's languages](https://github.com/fasiha/wikipedia-languages/) and then starts downloading several years worth of very interesting data from several Wikipedia projects. It saves the results in the Level database, so feel free to stop and restart the script till you get all the data. The script rate-limits itself so it might take an hour or two.
+This fetches a detailed list of [Wikipedia's languages](https://github.com/fasiha/wikipedia-languages/) and then starts downloading several years worth of very interesting data from several Wikipedia projects. It saves the results in the Level database, so feel free to stop and restart the script till you get all the data. The script rate-limits itself so it might take several hours (`MINIMUM_THROTTLE_DELAY_MS` used to be 30 milliseconds, but when I started getting `top-by-edits` data (see below), I increased this to 500 ms).
+
+Currently this script hits 130'050 URLs, and the Leveldb weighs roughly 930 megabytes (with Leveldb's automatic compression).
 
 Meanwhile, if you know TypeScript, you can read [downloader.ts](downloader.ts) to see what all it's doing.
 
-**Caveat** If you encounter a strange error about "RangeError: Maximum call stack size exceeded", this is an aspect of Node.js that bites when using heavily-recursive functions without any asynchronous operations that let Node reset the call stack—which *only* happens during testing mode (i.e., when one is just printing all the URLs to be requested, without actually requesting them (async `fetch`) or checking a database (async `get`)). This is a "bug" that strikes this codebase when in testing and not in production. See a [StackOverflow example](https://stackoverflow.com/questions/20936486/node-js-maximum-call-stack-size-exceeded#20999077).
-
 ## Data of interest
 
-([source](https://wikimedia.org/api/rest_v1/#/))
+Source: [Wikipedia REST API](https://wikimedia.org/api/rest_v1/#/).
 
-- The number of daily edited pages edited
-  - `get /metrics/edited-pages/aggregate/{project}/{editor-type}/{page-type}/{activity-level}/{granularity}/{start}/{end}` where
-    - `project` includes *all* Wikipedias (English, German, Japanese, etc.)
-    - `editor-type` includes `anonymous` or `user` (I don't care about bots)
-    - `page-type` includes `content` and `non-content`
-    - (`activity-level` = `all-activity-levels`)
-    - (`granularity` = `daily`)
-- (Maybe the number of daily *edits* (i.e., multiple edits are possible per page))
-- (Maybe the number of daily *new* pages?)
-- The number of daily active editors
-  - `get /metrics/editors/aggregate/{project}/{editor-type}/{page-type}/{activity-level}/{granularity}/{start}/{end}` where
-    - similar to above
-- Probably the pageviews
-  - `get /metrics/pageviews/aggregate/{project}/{access}/{agent}/{granularity}/{start}/{end}`
-    - `access` includes `desktop`, `mobile-app`, `mobile-web`
-    - `agent` = `user` (don't care about `spiders`)
-    - `granularity` = `hourly`
-- I also think I want to record the daily list of top-100 pages that saw most edits.
+We download the following:
+- `edited-pages/aggregate`: the number of edited pages, daily, between editor types (registered users, bots, and anonymous users)
+- `edits`: the total number of edits, daily
+- `edited-pages/new`: the number of new pages and who created them, per day
+- `editors`: the number of editors active per day, between editor types
+- `registered-users`: the daily number of new signups
+- `bytes-difference/net`: the daily number of net bytes edited (`added - deleted`), by editor type
+- `bytes-difference/absolute`: the daily number of total bytes edited (`added + deleted`)
+- `unique-devices`: daily number of unique devices seen, separated by access site (desktop versus mobile site)
+- `pageviews`: *daily* (soon hourly!) number of pageviews between access types (desktop browser, mobile browser, and mobile app) and agents (users or crawlers)
+- `edited-pages/top-by-edits`: the top hundred most-edited pages for each day, broken down by editor types
+
+all, for the top fifty Wikipedias (by active users), from 2001 to end of 2017. This serves as historical data that's dumped into Leveldb, indexed by the HTTP URL endpoint used to retreive it.
 
 ## Languages
 
-Obtain the [CSV](http://wikistats.wmflabs.org/api.php?action=dump&table=wikipedias&format=csv) (compare to [interactive table](http://wikistats.wmflabs.org/display.php?t=wp)) which is listed as the source to [this list](https://meta.wikimedia.org/wiki/List_of_Wikipedias).
-
 (Well, I did have exactly this question: [Why are there so many articles in the Cebuano Wikipedia?](https://www.quora.com/Why-are-there-so-many-articles-in-the-Cebuano-language-on-Wikipedia).)
 
+This package uses my [`wikipedia-languages`](https://github.com/fasiha/wikipedia-languages) library to automatically fetch some metadata from [Wikistats](https://wikistats.wmflabs.org) and stores it locally in `wikilangs.json`. We then select the top fifty Wikipedias by active users.
 
+## Next
+
+Up next on the menu: a script that churns through the raw data from the Wikipedia REST endpoints (stored in a Leveldb) and creates rows in tables (probably SQLite).
+
+Finally will be real juice: a statistical methodology to estimate the future probabilistic distributions of the things we want to predict WaR for.
