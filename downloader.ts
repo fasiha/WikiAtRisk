@@ -1,26 +1,26 @@
-import {Callbag, Factory, Operator} from 'callbag';
 import {existsSync, readFileSync, writeFileSync} from 'fs';
 import fetch from 'node-fetch';
 const { pipe, fromIter, concat, filter, map, forEach } = require('callbag-basics');
-const throttle: Operator = require('callbag-throttle');
-const filterPromise: Operator = require('callbag-filter-promise');
-const flatten: Operator = require('callbag-flatten');
+const throttle = require('callbag-throttle');
+const filterPromise = require('callbag-filter-promise');
+const flatten = require('callbag-flatten');
 const cartesian = require('callbag-cartesian-product');
+const flatMap = require('callbag-flat-map-operator');
 
 const BASE_URL = 'https://wikimedia.org/api/rest_v1';
 const MINIMUM_THROTTLE_DELAY_MS = 530; // 15 -> 66 requests per second
 
 // This list of endpoints is copied-pasted from https://wikimedia.org/api/rest_v1/
 const URLS = [
-  // '/metrics/edited-pages/aggregate/{project}/{editor-type}/{page-type}/{activity-level}/{granularity}/{start}/{end}',
-  // '/metrics/edits/aggregate/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
-  // '/metrics/edited-pages/new/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
-  // '/metrics/editors/aggregate/{project}/{editor-type}/{page-type}/{activity-level}/{granularity}/{start}/{end}',
-  // '/metrics/registered-users/new/{project}/{granularity}/{start}/{end}',
-  // '/metrics/bytes-difference/net/aggregate/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
-  // '/metrics/bytes-difference/absolute/aggregate/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
-  // '/metrics/unique-devices/{project}/{access-site}/{granularity}/{start}/{end}',
-  // '/metrics/pageviews/aggregate/{project}/{access}/{agent}/{granularity}/{start}/{end}',
+  '/metrics/edited-pages/aggregate/{project}/{editor-type}/{page-type}/{activity-level}/{granularity}/{start}/{end}',
+  '/metrics/edits/aggregate/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
+  '/metrics/edited-pages/new/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
+  '/metrics/editors/aggregate/{project}/{editor-type}/{page-type}/{activity-level}/{granularity}/{start}/{end}',
+  '/metrics/registered-users/new/{project}/{granularity}/{start}/{end}',
+  '/metrics/bytes-difference/net/aggregate/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
+  '/metrics/bytes-difference/absolute/aggregate/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
+  '/metrics/unique-devices/{project}/{access-site}/{granularity}/{start}/{end}',
+  '/metrics/pageviews/aggregate/{project}/{access}/{agent}/{granularity}/{start}/{end}',
   '/metrics/edited-pages/top-by-edits/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
 ];
 
@@ -92,14 +92,11 @@ function endpointYearProjectToURLs(endpoint: string, year: number, project: stri
     // The top-by-edits endpoint returns 1.2 MB JSON payloads for annual data, and frequently errors out. Make this
     // monthly to see if this is more reliable.
     const leftpad = (x: number) => x < 10 ? '0' + x : x;
-    combinationBag = cartesian(
-        false,
-        map((month: number) => ({
-          start : `${year}${leftpad(month)}01`,
-          end : month === 12 ? `${year + 1}0101` : `${year}${leftpad(month + 1)}01`
-        }))(fromIter(Array.from(Array(12), (_, i) => i + 1))),
-        combinationBag,
-    );
+    const monthsCallbag = fromIter(Array.from(Array(12), (_, i: number) => ({
+      start : `${year}${leftpad(i + 1)}01`,
+      end : i === 11 ? `${year + 1}0101` : `${year}${leftpad(i + 1 + 1)}01`
+    })));
+    combinationBag = flatMap(() => monthsCallbag, (arr: any[], month: any) => arr.concat(month))(combinationBag);
   }
   let allArgs = map((args: any) => Object.assign(baseArgs, ...args))(combinationBag);
   const mapper = map((args: any) => templateArgsToURL(template, args));
@@ -137,11 +134,10 @@ if (require.main === module) {
     const shortUrls = URLS.map(s => s.slice(0, s.indexOf('{')).split('/').slice(2, 4).filter(x => x.length).join('/'));
     const years = [...range(2001, 2018) ].reverse();
 
-    const outerProduct = iterCartesian(years, shortUrls, wikilangsdata.slice(0, 50).map(o => o.prefix + '.wikipedia'));
-    const sources = flatten(
-        map(([ year, endpoint, project ]: any) => endpointYearProjectToURLs(endpoint, year, project))(outerProduct));
+    const parameters = iterCartesian(years, shortUrls, wikilangsdata.slice(0, 50).map(o => o.prefix + '.wikipedia'));
     pipe(
-        sources,
+        parameters,
+        flatMap(([ year, endpoint, project ]: any) => endpointYearProjectToURLs(endpoint, year, project)),
         // forEach((x: any) => console.log(x)),
         filterPromise(async (url: string) => {
           try {

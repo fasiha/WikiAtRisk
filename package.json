@@ -24,10 +24,10 @@
     "typescript": "^2.7.2"
   },
   "dependencies": {
-    "callbag": "^1.0.3",
     "callbag-basics": "^2.0.1",
     "callbag-cartesian-product": "^2.0.0",
     "callbag-filter-promise": "^1.0.2",
+    "callbag-flat-map-operator": "^1.0.0",
     "callbag-flatten": "^1.0.0",
     "callbag-from-stream": "^1.0.0",
     "callbag-throttle": "^1.0.2",
