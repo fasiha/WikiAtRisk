@@ -1,8 +1,9 @@
 const throttle = require('callbag-throttle');
 const level = require('level');
 const db = level('./past-yearly-data');
-const { pipe, filter, forEach } = require('callbag-basics');
+const { pipe, filter, scan, take, map, forEach } = require('callbag-basics');
 const fromStream = require('callbag-from-stream');
+const last = require('callbag-last');
 if (require.main === module) {
   const command = process.argv[2];
   commands = {
@@ -10,7 +11,7 @@ if (require.main === module) {
       f : (async () => { pipe(fromStream(db.createReadStream()), forEach(x => console.log(x.key + '=>' + x.value))); })
     },
     rmalllll : { f : (async () => { pipe(fromStream(db.createKeyStream()), forEach(key => db.del(key))); }) },
-    keys : { f : (async () => { pipe(fromStream(db.createKeyStream()), forEach(x => console.log('KEY=' + x))); }) },
+    keys : { f : (async () => { pipe(fromStream(db.createKeyStream()), forEach(x => console.log(x))); }) },
     get : {
       f : (async () => {
         let key = process.argv[3];
@@ -37,7 +38,26 @@ if (require.main === module) {
                filter(({ value }) => (/error/).test(value)),
                forEach(x => console.log(x.key + '=>' + x.value)),
                ) })
-    }
+    },
+    resultsKeys : {
+      f : (() => {
+        pipe(
+            fromStream(db.createValueStream()),
+            // take(100),
+            map(text => JSON.parse(text)),
+            filter(res => res.items && res.items[0] && res.items[0].results),
+            map(res => Object.keys(res.items[0].results[0])),
+            scan(
+                (acc, curr) => {
+                  curr.forEach(k => acc.add(k));
+                  return acc;
+                },
+                new Set()),
+            last(),
+            forEach(x => console.log(x)),
+        );
+      })
+    },
   };
   const showCommands = () => console.log('Options: ' + Object.keys(commands).join(', '));
   if (command) {
