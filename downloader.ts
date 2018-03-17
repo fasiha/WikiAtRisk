@@ -129,6 +129,7 @@ if (require.main === module) {
       writeFileSync(WIKILANGSFILE, JSON.stringify(wikilangsdata));
     }
     wikilangsdata.sort((a, b) => b.activeusers - a.activeusers);
+    const fetchOptions = { headers : { 'User-Agent' : 'See https://github.com/fasiha/wikiatrisk' } };
 
     // 2001-2019 (18 years), nine endpoints, fifty to a hundred wikipedias
     const shortUrls = URLS.map(s => s.slice(0, s.indexOf('{')).split('/').slice(2, 4).filter(x => x.length).join('/'));
@@ -151,7 +152,7 @@ if (require.main === module) {
         throttle(MINIMUM_THROTTLE_DELAY_MS),
         forEach(async (url: string) => {
           console.log("asking…");
-          db.put(url, await fetch(url).then(res => res.text()));
+          db.put(url, await fetch(url, fetchOptions).then(res => res.text()));
           console.log(url);
         }),
     );
