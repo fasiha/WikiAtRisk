@@ -61,4 +61,12 @@ This package uses my [`wikipedia-languages`](https://github.com/fasiha/wikipedia
 
 Up next on the menu: a script that churns through the raw data from the Wikipedia REST endpoints (stored in a Leveldb) and creates rows in tables (probably SQLite).
 
-Finally will be real juice: a statistical methodology to estimate the future probabilistic distributions of the things we want to predict WaR for.
+Then I'll split that into training and testing sets—I'm thinking two years for training, then set aside one year for testing, for countries with a four-year election cycle, so that the testing periods cycle through all phases of that? I think I want the test set to have increments of a whole year to ensure I can capture seasonality.
+
+The real juice is a statistical methodology to estimate the future probabilistic distributions of the things we want to predict WaR for.
+
+Finally, we'll need some ways of collecting near-real-time data to get daily WaRs. We can use
+- [Quarry](https://quarry.wmflabs.org/query/25783) to run SQL queries on current Wikimedia databases (to get lower latency or finer-grained results than the REST API above), or potentially
+- [EventStreams](https://stream.wikimedia.org/?doc) which is a high-volume real-time data feed from Wikimedia of many events that will eventually make it into the REST API.
+
+With these in place, we can publish real-time WaRs!
