@@ -36,6 +36,7 @@
     "lodash.product": "^18.1.16",
     "node-fetch": "^2.0.0",
     "range-generator": "^1.0.2",
+    "sqlite3": "^4.0.0",
     "wikipedia-languages": "^1.0.0"
   }
 }

@@ -10,19 +10,7 @@ const flatMap = require('callbag-flat-map-operator');
 const BASE_URL = 'https://wikimedia.org/api/rest_v1';
 const MINIMUM_THROTTLE_DELAY_MS = 530; // 15 -> 66 requests per second
 
-// This list of endpoints is copied-pasted from https://wikimedia.org/api/rest_v1/
-const URLS = [
-  '/metrics/edited-pages/aggregate/{project}/{editor-type}/{page-type}/{activity-level}/{granularity}/{start}/{end}',
-  '/metrics/edits/aggregate/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
-  '/metrics/edited-pages/new/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
-  '/metrics/editors/aggregate/{project}/{editor-type}/{page-type}/{activity-level}/{granularity}/{start}/{end}',
-  '/metrics/registered-users/new/{project}/{granularity}/{start}/{end}',
-  '/metrics/bytes-difference/net/aggregate/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
-  '/metrics/bytes-difference/absolute/aggregate/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
-  '/metrics/unique-devices/{project}/{access-site}/{granularity}/{start}/{end}',
-  '/metrics/pageviews/aggregate/{project}/{access}/{agent}/{granularity}/{start}/{end}',
-  '/metrics/edited-pages/top-by-edits/{project}/{editor-type}/{page-type}/{granularity}/{start}/{end}',
-];
+import {URLS, defaultCombinations} from './endpoints';
 
 // These types aren't used but are helpful to refer to. They're extracted from https://wikimedia.org/api/rest_v1/ also
 type EditorType = 'anonymous'|'group-bot'|'name-bot'|'user'|'all-editor-types';
@@ -47,23 +35,16 @@ function templateArgsToURL(urlTemplate: string, args: any) {
 }
 
 function keysToCallbag(keysNeeded: string[]) {
-  const allCombinations: any = {
-    editorType : 'anonymous,group-bot,name-bot,user'.split(','),
-    pageType : 'content,non-content'.split(','),
-    accessSite : 'desktop-site,mobile-site'.split(','),
-    access : 'desktop,mobile-app,mobile-web'.split(','),
-    agent : 'user,spider'.split(',')
-  };
-  if (!keysNeeded.every(key => allCombinations[key])) {
+  if (!keysNeeded.every(key => defaultCombinations[key])) {
     throw new Error(
-        'Key could not be filled in automatically: ' + keysNeeded.find((key: string) => !allCombinations[key]));
+        'Key could not be filled in automatically: ' + keysNeeded.find((key: string) => !defaultCombinations[key]));
   }
   if (keysNeeded.length === 0) { return fromIter([ [ {} ] ]); }
   return map((args: any[]) => args.map((arg, i) => {
     let ret: any = {};
     ret[keysNeeded[i]] = arg;
     return ret;
-  }))(cartesian(...keysNeeded.map(key => fromIter(allCombinations[key]))));
+  }))(cartesian(...keysNeeded.map(key => fromIter(defaultCombinations[key]))));
 }
 
 function endpointYearProjectToURLs(endpoint: string, year: number, project: string) {
@@ -74,7 +55,6 @@ function endpointYearProjectToURLs(endpoint: string, year: number, project: stri
 
   const allKeysNeeded = urlTemplateToKeys(template);
 
-  const activityLevel = 'all-activity-levels';
   const granularity = 'daily';
   const start = `${year}0101`;
   const end = `${year + 1}0101`;
@@ -83,7 +63,7 @@ function endpointYearProjectToURLs(endpoint: string, year: number, project: stri
     throw new Error('Hourly might deliver incomplete (5000 element only) set, with a next field.');
   }
 
-  let baseArgs = { project, activityLevel, granularity, start, end };
+  let baseArgs = { project, granularity, start, end };
   let baseKeys = new Set(Object.keys(baseArgs));
   let combinationKeysNeeded = allKeysNeeded.filter(needed => !baseKeys.has(needed));
   let combinationBag = keysToCallbag(combinationKeysNeeded);
