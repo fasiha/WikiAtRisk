@@ -6,6 +6,8 @@ const sqldb = new sqlite3.Database('./granular.sqlite');
 import {URLS, defaultCombinations} from './endpoints';
 const flatten1 = (arr: any[]) => arr.reduce((acc, x) => acc.concat(x), []);
 const camelCase = require('camelcase');
+const { pipe, filter, scan, take, map, forEach } = require('callbag-basics');
+const fromStream = require('callbag-from-stream');
 
 const tablesNeeded = URLS.map(
     u => u.split('/').filter(s => !(s === '' || s === 'metrics' || s === 'aggregate' || s.startsWith('{'))).join('/'));
@@ -210,12 +212,17 @@ if (require.main === module) {
         let hit = JSON.parse(await leveldb.get(key));
         initializeTablesFromItems(key, hit.items, sqldb);
       }
-      sqldb.parallelize(async () => {
-        for (let key of testKeys) {
-          let hit = JSON.parse(await leveldb.get(key));
-          parseItems(key, hit.items, sqldb);
-        }
-      });
+      let i = 0;
+      sqldb.parallelize(() => pipe(
+                            fromStream(leveldb.createReadStream()),
+                            // take(300),
+                            forEach(({ key, value }: { key: string, value: string }) => {
+                              i++;
+                              if (i % 100 === 0) { console.log(i, key); }
+                              // console.log(key);
+                              parseItems(key, JSON.parse(value).items, sqldb);
+                            }),
+                            ));
     });
   })();
 }
