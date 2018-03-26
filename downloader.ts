@@ -6,6 +6,7 @@ const filterPromise = require('callbag-filter-promise');
 const flatten = require('callbag-flatten');
 const cartesian = require('callbag-cartesian-product');
 const flatMap = require('callbag-flat-map-operator');
+const dashCaseToCamel: (s: string) => string = require('camelcase');
 
 const BASE_URL = 'https://wikimedia.org/api/rest_v1';
 const MINIMUM_THROTTLE_DELAY_MS = 530; // 15 -> 66 requests per second
@@ -18,8 +19,6 @@ type PageType = 'content'|'non-content'|'all-page-types';
 type AccessSite = 'desktop-site'|'mobile-site'|'all-sites';
 type Access = 'desktop'|'mobile-app'|'mobile-web'|'all-access';
 type Agent = 'user'|'spider'|'all-agents';
-
-function dashCaseToCamel(s: string) { return s.replace(/-(.)/g, (_, c) => c.toUpperCase()); }
 
 function urlTemplateToKeys(template: string) {
   return (template.match(/{[^}]+}/g) || []).map(s => s.slice(1, -1)).map(dashCaseToCamel);
