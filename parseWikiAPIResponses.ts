@@ -53,7 +53,8 @@ function initializeTablesFromItems(globalKey: string, items: any[], sqldb: sqlit
     let metaString = metadataKeys.map(key => `${key} TEXT`).sort().join(', ');
     for (let result of resultsSet) {
       if (result === 'top') {
-        return; // FIXME
+        sqldb.run(`CREATE TABLE IF NOT EXISTS war_${
+            result} (id INTEGER PRIMARY KEY, pageId TEXT, edits INTEGER, timestamp TEXT, ${metaString})`);
       } else {
         sqldb.run(`CREATE TABLE IF NOT EXISTS war_${result} (id INTEGER PRIMARY KEY, ${
             result} INTEGER, timestamp TEXT, ${metaString})`);
@@ -63,6 +64,7 @@ function initializeTablesFromItems(globalKey: string, items: any[], sqldb: sqlit
 }
 
 function parseItems(globalKey: string, items: any[], sqldb: sqlite3.Database) {
+  let statement: sqlite3.Statement;
   items.forEach((item: any) => {
     let nonResultValues = [ 'devices', 'views' ];
 
@@ -80,30 +82,45 @@ function parseItems(globalKey: string, items: any[], sqldb: sqlite3.Database) {
       let textKeysString = textKeys.map(s => `${camelCase(s)} TEXT`).join(', ');
       let qs = metadataKeys.map(_ => '?').join(', ');
       let textKeysOnly = textKeys.map(s => camelCase(s)).join(',');
-      let statement = sqldb.prepare(`INSERT INTO war_${target} (${target}, timestamp, ${textKeysOnly}) VALUES (${qs})`);
-      statement.run(+item[target], item.timestamp, ...textValues);
+      if (!statement) {
+        statement = sqldb.prepare(`INSERT INTO war_${target} (${target}, timestamp, ${textKeysOnly}) VALUES (${qs})`);
+      } else {
+        statement.run(+item[target], item.timestamp, ...textValues);
+      }
       return;
     }
 
     if (item.results.length === 0) { throw new Error('"results" not found or empty in ' + globalKey); }
-    if (item.results[0].hasOwnProperty('top')) { return; }
-    let metadataKeysOrig: string[] = Object.keys(item).filter(x => x !== 'results').sort();
-    let metadataKeys = metadataKeysOrig.map(s => camelCase(s));
-    let resultsSet: Set<string> = new Set(flatten1(item.results.map((result: any) => Object.keys(result))));
-    resultsSet.delete('timestamp');
+    let metadataKeys: string[] = Object.keys(item).filter(x => x !== 'results').sort();
+    let metadataValues = metadataKeys.map(k => item[k]);
+    metadataKeys = metadataKeys.map(s => camelCase(s));
 
-    let metadataValues = metadataKeysOrig.map(k => item[k]);
-    let metaString = metadataKeys.map(key => `${key} TEXT`).join(', ');
-    let qs = Array.from(Array(metadataKeys.length + 2), _ => '?').join(', ');
-    const makeColumnString = (result: string) => `${result}, timestamp, ${metadataKeys.join(',')}`;
     let resultToStatement: any = {};
-    resultsSet.forEach(result => resultToStatement[result]
-                       = sqldb.prepare(`INSERT INTO war_${result} (${makeColumnString(result)}) VALUES (${qs})`));
-    for (let result of item.results) {
+
+    item.results.forEach((result: any) => {
       let key = Object.keys(result).find(k => k !== 'timestamp');
-      if (!key) { throw new Error('key not found'); }
-      resultToStatement[key].run(+result[key], result.timestamp, ...metadataValues);
-    }
+      if (!key) { throw new Error('cannot find key'); }
+
+      if (key === 'top') {
+        if (!resultToStatement[key]) {
+          let qs = Array.from(Array(metadataKeys.length + 3), _ => '?').join(', ');
+          let cols = `pageId, edits, timestamp, ${metadataKeys.join(',')}`;
+          resultToStatement[key] = sqldb.prepare(`INSERT INTO war_${key} (${cols}) VALUES (${qs})`);
+        } else {
+          for (let top of result[key]) {
+            resultToStatement[key].run(top.page_id, +top.edits, result.timestamp, ...metadataValues);
+          }
+        }
+      } else {
+        if (!resultToStatement[key]) {
+          let qs = Array.from(Array(metadataKeys.length + 2), _ => '?').join(', ');
+          const makeColumnString = (key: string) => `${key}, timestamp, ${metadataKeys.join(',')}`;
+          resultToStatement[key] = sqldb.prepare(`INSERT INTO war_${key} (${makeColumnString(key)}) VALUES (${qs})`);
+        } else {
+          resultToStatement[key].run(+result[key], result.timestamp, ...metadataValues);
+        }
+      }
+    });
     /*
     Will have to parse: Set {
       'timestamp',
