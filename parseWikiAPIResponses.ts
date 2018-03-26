@@ -26,6 +26,42 @@ number}>
 - timestamp
  */
 
+function initializeTablesFromItems(globalKey: string, items: any[], sqldb: sqlite3.Database) {
+  items.forEach((item: any) => {
+    let nonResultValues = [ 'devices', 'views' ];
+
+    if (!item.results && item.timestamp && (nonResultValues.some(s => item.hasOwnProperty(s)))) {
+      let target = nonResultValues.find(key => item.hasOwnProperty(key));
+      if (!target) { throw new Error('non-result target not found'); }
+      let metadataKeys: string[] = Object.keys(item);
+      let textKeysSet = new Set(metadataKeys);
+      textKeysSet.delete('timestamp');
+      nonResultValues.forEach(k => textKeysSet.delete(k));
+      let textKeys = Array.from(textKeysSet);
+      let textKeysString = textKeys.map(s => `${camelCase(s)} TEXT`).sort().join(', ');
+      sqldb.run(`CREATE TABLE IF NOT EXISTS war_${target} (id INTEGER PRIMARY KEY, ${target} INTEGER, timestamp TEXT, ${
+          textKeysString})`);
+      return;
+    }
+
+    if (item.results.length === 0) { throw new Error('"results" not found or empty in ' + globalKey); }
+    let metadataKeysOrig: string[] = Object.keys(item).filter(x => x !== 'results');
+    let metadataKeys = metadataKeysOrig.map(s => camelCase(s));
+    let resultsSet: Set<string> = new Set(flatten1(item.results.map((result: any) => Object.keys(result))));
+    resultsSet.delete('timestamp');
+
+    let metaString = metadataKeys.map(key => `${key} TEXT`).sort().join(', ');
+    for (let result of resultsSet) {
+      if (result === 'top') {
+        return; // FIXME
+      } else {
+        sqldb.run(`CREATE TABLE IF NOT EXISTS war_${result} (id INTEGER PRIMARY KEY, ${
+            result} INTEGER, timestamp TEXT, ${metaString})`);
+      }
+    }
+  });
+}
+
 function parseItems(globalKey: string, items: any[], sqldb: sqlite3.Database) {
   items.forEach((item: any) => {
     let nonResultValues = [ 'devices', 'views' ];
@@ -38,53 +74,36 @@ function parseItems(globalKey: string, items: any[], sqldb: sqlite3.Database) {
       let textKeysSet = new Set(metadataKeys);
       textKeysSet.delete('timestamp');
       nonResultValues.forEach(k => textKeysSet.delete(k));
-      let textKeys = Array.from(textKeysSet);
+      let textKeys = Array.from(textKeysSet).sort();
       let textValues = textKeys.map(k => item[k]);
 
       let textKeysString = textKeys.map(s => `${camelCase(s)} TEXT`).join(', ');
       let qs = metadataKeys.map(_ => '?').join(', ');
       let textKeysOnly = textKeys.map(s => camelCase(s)).join(',');
-      sqldb.serialize(() => {
-        sqldb.run(`CREATE TABLE IF NOT EXISTS war_${target} (id INTEGER PRIMARY KEY, ${
-            target} INTEGER, timestamp TEXT, ${textKeysString})`);
-        let statement
-            = sqldb.prepare(`INSERT INTO war_${target} (${target}, timestamp, ${textKeysOnly}) VALUES (${qs})`);
-        statement.run(item.views, item.timestamp, ...textValues);
-      });
+      let statement = sqldb.prepare(`INSERT INTO war_${target} (${target}, timestamp, ${textKeysOnly}) VALUES (${qs})`);
+      statement.run(+item[target], item.timestamp, ...textValues);
       return;
     }
 
     if (item.results.length === 0) { throw new Error('"results" not found or empty in ' + globalKey); }
-    let metadataKeysOrig: string[] = Object.keys(item).filter(x => x !== 'results');
+    if (item.results[0].hasOwnProperty('top')) { return; }
+    let metadataKeysOrig: string[] = Object.keys(item).filter(x => x !== 'results').sort();
     let metadataKeys = metadataKeysOrig.map(s => camelCase(s));
     let resultsSet: Set<string> = new Set(flatten1(item.results.map((result: any) => Object.keys(result))));
     resultsSet.delete('timestamp');
 
     let metadataValues = metadataKeysOrig.map(k => item[k]);
-    sqldb.serialize(() => {
-      let metaString = metadataKeys.map(key => `${key} TEXT`).join(', ');
-      for (let result of resultsSet) {
-        if (result === 'top') {
-          return; // FIXME
-        } else {
-          sqldb.run(`CREATE TABLE IF NOT EXISTS war_${result} (id INTEGER PRIMARY KEY, ${
-              result} REAL, timestamp TEXT, ${metaString})`);
-        }
-      }
-      let qs = Array.from(Array(metadataKeys.length + 2), _ => '?').join(', ');
-      const makeColumnString = (result: string) => `${result}, timestamp, ${metadataKeys.join(',')}`;
-      let resultToStatement: any = {};
-      resultsSet.forEach(result => resultToStatement[result]
-                         = sqldb.prepare(`INSERT INTO war_${result} (${makeColumnString(result)}) VALUES (${qs})`));
-      sqldb.parallelize(() => {
-        for (let result of item.results) {
-          let key = Object.keys(result).find(k => k !== 'timestamp');
-          if (!key) { throw new Error('key not found'); }
-          let value = +result[key];
-          resultToStatement[key].run(value, result.timestamp, ...metadataValues);
-        }
-      });
-    })
+    let metaString = metadataKeys.map(key => `${key} TEXT`).join(', ');
+    let qs = Array.from(Array(metadataKeys.length + 2), _ => '?').join(', ');
+    const makeColumnString = (result: string) => `${result}, timestamp, ${metadataKeys.join(',')}`;
+    let resultToStatement: any = {};
+    resultsSet.forEach(result => resultToStatement[result]
+                       = sqldb.prepare(`INSERT INTO war_${result} (${makeColumnString(result)}) VALUES (${qs})`));
+    for (let result of item.results) {
+      let key = Object.keys(result).find(k => k !== 'timestamp');
+      if (!key) { throw new Error('key not found'); }
+      resultToStatement[key].run(+result[key], result.timestamp, ...metadataValues);
+    }
     /*
     Will have to parse: Set {
       'timestamp',
@@ -169,11 +188,17 @@ if (require.main === module) {
     https://wikimedia.org/api/rest_v1/metrics/unique-devices/en.wikipedia/desktop-site/daily/20170101/20180101
     https://wikimedia.org/api/rest_v1/metrics/unique-devices/en.wikipedia/mobile-site/daily/20170101/20180101`;
     let testKeys = allEnglish.trim().split('\n').map(s => s.trim());
-    for (let key of testKeys) {
-      let hit = JSON.parse(await leveldb.get(key));
-      try {
-        parseItems(key, hit.items, sqldb);
-      } catch (e) { console.error('ERROR in global key ' + key, e); }
-    }
+    sqldb.serialize(async () => {
+      for (let key of testKeys) {
+        let hit = JSON.parse(await leveldb.get(key));
+        initializeTablesFromItems(key, hit.items, sqldb);
+      }
+      sqldb.parallelize(async () => {
+        for (let key of testKeys) {
+          let hit = JSON.parse(await leveldb.get(key));
+          parseItems(key, hit.items, sqldb);
+        }
+      });
+    });
   })();
 }
