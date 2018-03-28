@@ -5,16 +5,18 @@ import plyvel
 import json
 import re
 
-dashToCamelCase = lambda s: re.sub(r'-(.)', lambda o: o[1].upper(), s)
-
 import endpoints
 endpoint = endpoints.URLS[0]
 
 
-def endpointToDataArray(endpoint,
-                        lang,
+def dashToCamelCase(s: str) -> str:
+  return re.sub(r'-(.)', lambda o: o[1].upper(), s)
+
+
+def endpointToDataArray(endpoint: str,
+                        lang: str,
                         t=pd.date_range('2001-01-01', '2018-01-01'),
-                        dtype=np.int64):
+                        dtype=np.int64) -> xr.DataArray:
   keys = list(
       filter(lambda key: key in endpoints.defaultCombinations,
              map(lambda s: dashToCamelCase(re.sub(r'[{}]', '', s)),
