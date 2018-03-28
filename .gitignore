@@ -2,3 +2,9 @@ node_modules/
 *.js
 *.json
 *.txt
+share/
+lib/
+bin/
+include/
+__pycache__/
+*.nc
