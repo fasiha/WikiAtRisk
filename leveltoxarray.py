@@ -49,7 +49,8 @@ appendToDataset(editedPages, 'fr.wikipedia')
 db = plyvel.DB('./past-yearly-data', create_if_missing=False)
 prefix = bytes(endpoints.BASE_URL + endpoint[:endpoint.find('{')], 'utf8')
 
-for key, value in db.iterator(prefix=prefix):
+def worker(kv):
+  key,value=kv
   print(key)
   value = json.loads(value)
   for item in value['items']:
@@ -70,7 +71,12 @@ for key, value in db.iterator(prefix=prefix):
         raise ValueError('More than one data element found in result')
       vec.loc[t] = vals[0]
 
-
+from multiprocessing import Pool
+if __name__ == '__main__':
+  with Pool(3) as p:
+    l = p.map(worker, db.iterator(prefix=prefix), 10)
+    print(len(l))
+  
 akey = b'https://wikimedia.org/api/rest_v1/metrics/edited-pages/aggregate/en.wikipedia/anonymous/content/all-activity-levels/daily/20150101/20160101'
 value = json.loads(db.get(akey))
 
