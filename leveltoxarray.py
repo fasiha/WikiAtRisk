@@ -70,6 +70,8 @@ def worker(kv):
             if len(vals) != 1:
                 raise ValueError('More than one data element found in result')
             vec.loc[t] = vals[0]
+    editedPages.to_netcdf('edited-pages.nc')
+    
 
 
 if __name__ == '__main__':
@@ -78,17 +80,14 @@ if __name__ == '__main__':
         start=b'https://wikimedia.org/api/rest_v1/metrics/edited-pages/aggregate/f',
         stop=b'https://wikimedia.org/api/rest_v1/metrics/edited-pages/aggregate/g')
     import itertools
-    take = 5
+    take = 15
     if True:
         for v in itertools.islice(dbscan, take):
             worker(v)
     else:
-        # This doesn't work: the processes don't update the global object
-        from multiprocessing import Pool
-        with Pool(3) as p:
-            # l = p.map(worker, db.iterator(prefix=prefix), 10)
-            l = p.map(worker, itertools.islice(dbscan, take), 1)
-            print(len(l))
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            l = executor.map(worker, itertools.islice(dbscan, take), chunksize=5)
 
 akey = b'https://wikimedia.org/api/rest_v1/metrics/edited-pages/aggregate/en.wikipedia/anonymous/content/all-activity-levels/daily/20150101/20160101'
 value = json.loads(db.get(akey))
