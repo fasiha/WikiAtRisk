@@ -45,19 +45,35 @@ def appendToDataset(ds: xr.Dataset, newProject: str):
 
 editedPages = endpointToDataset(endpoint, 'en.wikipedia')
 appendToDataset(editedPages, 'fr.wikipedia')
-editedPages.to_netcdf('edited-pages.nc')
 
-# db = plyvel.DB('./past-yearly-data', create_if_missing=False)
-# prefix = bytes(endpoints.BASE_URL + endpoint[:endpoint.find('{')], 'utf8')
-# for key, value in db.iterator(prefix=prefix):
-#   print(key)
-#   value = json.loads(value)
-#   # for item in items:
-#   break
+db = plyvel.DB('./past-yearly-data', create_if_missing=False)
+prefix = bytes(endpoints.BASE_URL + endpoint[:endpoint.find('{')], 'utf8')
 
-# akey = b'https://wikimedia.org/api/rest_v1/metrics/bytes-difference/absolute/aggregate/en.wikipedia/anonymous/non-content/daily/20160101/20170101'
-# aval = json.loads(db.get(akey))
+for key, value in db.iterator(prefix=prefix):
+  print(key)
+  value = json.loads(value)
+  for item in value['items']:
+    appendToDataset(editedPages, item['project'])
+    vec = editedPages[item['project']]
+    for key, value in item.items():
+      key = dashToCamelCase(key)
+      if key in editedPages.coords:
+        vec = vec.loc[dict([[key, value]])]
+    if len(vec.coords.dims) != 1:
+      raise ValueError('data does not fully specify non-time axes')
+    # Note how we don't deal with granularities other than daily FIXME
+    for result in item['results']:
+      result = dict(result) # copy to avoid overwriting the data, in case we need it later
+      t = result.pop('timestamp')
+      vals = list(result.values())
+      if len(vals) != 1:
+        raise ValueError('More than one data element found in result')
+      vec.loc[t] = vals[0]
+
+
+akey = b'https://wikimedia.org/api/rest_v1/metrics/edited-pages/aggregate/en.wikipedia/anonymous/content/all-activity-levels/daily/20150101/20160101'
+value = json.loads(db.get(akey))
+
 # del db
 
-# s = pd.Series(np.random.randn(len(t)), index=t)
-# s.loc['2004-03-01 0:00:00.00Z']
+editedPages.to_netcdf('edited-pages.nc')
