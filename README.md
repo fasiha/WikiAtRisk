@@ -14,24 +14,40 @@ or some combination thereof, for at least the top fifty busiest (identified loos
 We wish as much to understand the world through Wikipedia as to understand Wikipedia through the world.
 
 ## Yeah, yeah, I know, how do I run this?
-After installing [Git](https://git-scm.com/) and [Node.js](https://nodejs.org/), run the following in your command prompt (each line beginning with a dollar sign, but don't type the dollar sign):
+Currently there are two pieces:
+1. In TypeScript/JavaScript, a package that makes several thousand requests to the Wikimedia analytics server and caches the results as plaintext in a Leveldb, and
+2. in Python, a package that transforms the text-based data in Leveldb to numeric data for Numpy and Pandas and friends.
+
+In these instructions, I'll assume you want to do both. So after installing [Git](https://git-scm.com/) and [Node.js](https://nodejs.org/), run the following in your command prompt (each line beginning with a dollar sign, but don't type the dollar sign):
 ```
 $ git clone https://github.com/fasiha/WikiAtRisk.git
 $ cd WikiAtRisk
 $ npm install
 $ npm run build
 ```
-The above will clone this code repository into a new directory, enter that directory, intall the JavaScript dependencies, and build the TypeScript source to JavaScript.
+The above will clone this code repository into a new directory (`git …`), enter that directory (`cd …`), intall the JavaScript dependencies (`npm install`, npm being something installed by Node.js), and build the TypeScript source to JavaScript (`npm run …`).
 
 Right now, the only thing this repo does is download a ton of Wikipedia data into a Leveldb database. To get that started, run:
 ```
 $ node downloader.js
 ```
-This fetches a detailed list of [Wikipedia's languages](https://github.com/fasiha/wikipedia-languages/) and then starts downloading several years worth of very interesting data from several Wikipedia projects. It saves the results in the Level database, so feel free to stop and restart the script till you get all the data. The script rate-limits itself so it might take several hours (`MINIMUM_THROTTLE_DELAY_MS` used to be 30 milliseconds, but when I started getting `top-by-edits` data (see below), I increased this to 500 ms).
+This fetches a detailed list of [Wikipedia's languages](https://github.com/fasiha/wikipedia-languages/) and then starts downloading several years worth of very interesting data from several Wikipedia projects. It saves the results in the Level database, so feel free to stop and restart the script till you get all the data. The script rate-limits itself so it might take several hours (`MINIMUM_THROTTLE_DELAY_MS` used to be 30 milliseconds, but when I started getting `top-by-edits` data (see below), I increased this to 500 ms). Currently this script hits 130'050 URLs, and the Leveldb weighs roughly 930 megabytes (with Leveldb's automatic compression). If you know TypeScript, you can read [downloader.ts](downloader.ts) to see what all it's doing.
 
-Currently this script hits 130'050 URLs, and the Leveldb weighs roughly 930 megabytes (with Leveldb's automatic compression).
-
-Meanwhile, if you know TypeScript, you can read [downloader.ts](downloader.ts) to see what all it's doing.
+After that finishes, you need to install [Python 3](https://www.python.org/downloads/) (though I recommend [pyenv](https://github.com/pyenv/pyenv)—Clojure and Rust and plenty of other communities have shown us that we shouldn't rely on system-wide installs), then install the `virtualenv` by running the following in the command-line:
+```
+$ pip install virtualenv
+```
+Pip is the Python installer kind of like how npm is to Node.js. You just have to do this once, whether you're using pyenv or a sytem-wide Python 3 install. Next,
+```
+$ virtualenv .
+$ source bin/activate
+$ pip install -r requirements.txt --upgrade
+```
+This creates a virtualenv in the current directory (`virtualenv …`), activates it (`source …`), and installs the libraries that my Python code depends on (`pip …`). Now you're ready to run the LevelDB-to-xarray ingester:
+```
+$ python leveltoxarray.py
+```
+This will spit out several `.nc` NetCDF files that xarray understands. (xarray is a tensor/multidimensional version of Pandas.) **Currently work-in-progress.**
 
 ## Data of interest
 
@@ -59,9 +75,7 @@ This package uses my [`wikipedia-languages`](https://github.com/fasiha/wikipedia
 
 ## Next
 
-Up next on the menu: a script that churns through the raw data from the Wikipedia REST endpoints (stored in a Leveldb) and creates rows in tables (probably SQLite).
-
-Then I'll split that into training and testing sets—I'm thinking two years for training, then set aside one year for testing, for countries with a four-year election cycle, so that the testing periods cycle through all phases of that? I think I want the test set to have increments of a whole year to ensure I can capture seasonality.
+Up next on the menu: I need to split the data into training and testing sets—I'm thinking two years for training, then set aside one year for testing, for countries with a four-year election cycle, so that the testing periods cycle through all phases of that? I think I want the test set to have increments of a whole year to ensure I can capture seasonality.
 
 The real juice is a statistical methodology to estimate the future probabilistic distributions of the things we want to predict WaR for.
 
