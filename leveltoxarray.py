@@ -45,12 +45,12 @@ editedPages = endpointToDataset(endpoint, 'en.wikipedia')
 appendToDataset(editedPages, 'fr.wikipedia')
 
 db = plyvel.DB('./past-yearly-data', create_if_missing=False)
-prefix = bytes(endpoints.BASE_URL + endpoint[:endpoint.find('{')], 'utf8')
 
 
 def worker(kv):
     key, value = kv
     print(key)
+    # return key
     value = json.loads(value)
     for item in value['items']:
         appendToDataset(editedPages, item['project'])
@@ -72,11 +72,23 @@ def worker(kv):
             vec.loc[t] = vals[0]
 
 
-from multiprocessing import Pool
 if __name__ == '__main__':
-    with Pool(3) as p:
-        l = p.map(worker, db.iterator(prefix=prefix), 10)
-        print(len(l))
+    prefix = bytes(endpoints.BASE_URL + endpoint[:endpoint.find('{')], 'utf8')
+    dbscan = db.iterator(
+        start=b'https://wikimedia.org/api/rest_v1/metrics/edited-pages/aggregate/f',
+        stop=b'https://wikimedia.org/api/rest_v1/metrics/edited-pages/aggregate/g')
+    import itertools
+    take = 5
+    if True:
+        for v in itertools.islice(dbscan, take):
+            worker(v)
+    else:
+        # This doesn't work: the processes don't update the global object
+        from multiprocessing import Pool
+        with Pool(3) as p:
+            # l = p.map(worker, db.iterator(prefix=prefix), 10)
+            l = p.map(worker, itertools.islice(dbscan, take), 1)
+            print(len(l))
 
 akey = b'https://wikimedia.org/api/rest_v1/metrics/edited-pages/aggregate/en.wikipedia/anonymous/content/all-activity-levels/daily/20150101/20160101'
 value = json.loads(db.get(akey))
