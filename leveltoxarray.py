@@ -4,6 +4,7 @@ import pandas as pd
 import plyvel
 import json
 import re
+import hashlib
 
 import endpoints
 endpoint = endpoints.URLS[0]
@@ -43,8 +44,10 @@ def appendToDataset(ds: xr.Dataset, newProject: str):
 
 def updateDataset(ds, keyval):
     key, value = keyval
+    hashed = hashlib.sha256(key).hexdigest()
+    if hashed in ds.attrs:
+        return False
     print(key)
-    # return key
     value = json.loads(value)
     for item in value['items']:
         appendToDataset(ds, item['project'])
@@ -64,31 +67,25 @@ def updateDataset(ds, keyval):
             if len(vals) != 1:
                 raise ValueError('More than one data element found in result')
             vec.loc[t] = vals[0]
+    ds.attrs[hashed] = 1
+    return True
 
 
 if __name__ == '__main__':
+    import os
     filename = 'edited-pages.nc'
-    freshFile = False
     try:
         editedPages = xr.open_dataset(filename)
     except FileNotFoundError:
         editedPages = endpointToDataset(endpoint, 'en.wikipedia')
         appendToDataset(editedPages, 'fr.wikipedia')
-        freshFile = True
 
     prefix = bytes(endpoints.BASE_URL + endpoint[:endpoint.find('{')], 'utf8')
-    donePrefix = b'xarray-done-'
 
     db = plyvel.DB('./past-yearly-data', create_if_missing=False)
 
-    if freshFile:
-        map(lambda k: db.delete(k), db.iterator(prefix=donePrefix + prefix, include_value=False))
-
     dbscan = db.iterator(prefix=prefix)
     for res in dbscan:
-        doneKey = donePrefix + res[0]
-        if not db.get(doneKey):
-            updateDataset(editedPages, res)
-            # saving to disk every key will get slow when the file is ~tens of megs (tho, disk cache?)
-            editedPages.to_netcdf(filename)
-            db.put(doneKey, b'1')
+        if updateDataset(editedPages, res):
+            editedPages.to_netcdf(filename + '2')
+            os.rename(filename + '2', filename)
