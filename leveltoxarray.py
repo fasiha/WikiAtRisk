@@ -41,12 +41,6 @@ def appendToDataset(ds: xr.Dataset, newProject: str):
         ds[newProject] = (dims, 0 * arr)
 
 
-editedPages = endpointToDataset(endpoint, 'en.wikipedia')
-appendToDataset(editedPages, 'fr.wikipedia')
-
-db = plyvel.DB('./past-yearly-data', create_if_missing=False)
-
-
 def worker(kv):
     key, value = kv
     print(key)
@@ -71,27 +65,16 @@ def worker(kv):
                 raise ValueError('More than one data element found in result')
             vec.loc[t] = vals[0]
     editedPages.to_netcdf('edited-pages.nc')
-    
 
 
 if __name__ == '__main__':
+    editedPages = endpointToDataset(endpoint, 'en.wikipedia')
+    appendToDataset(editedPages, 'fr.wikipedia')
+
     prefix = bytes(endpoints.BASE_URL + endpoint[:endpoint.find('{')], 'utf8')
-    dbscan = db.iterator(
-        start=b'https://wikimedia.org/api/rest_v1/metrics/edited-pages/aggregate/f',
-        stop=b'https://wikimedia.org/api/rest_v1/metrics/edited-pages/aggregate/g')
-    import itertools
-    take = 15
-    if True:
-        for v in itertools.islice(dbscan, take):
-            worker(v)
-    else:
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-            l = executor.map(worker, itertools.islice(dbscan, take), chunksize=5)
 
-akey = b'https://wikimedia.org/api/rest_v1/metrics/edited-pages/aggregate/en.wikipedia/anonymous/content/all-activity-levels/daily/20150101/20160101'
-value = json.loads(db.get(akey))
-
-# del db
-
-editedPages.to_netcdf('edited-pages.nc')
+    db = plyvel.DB('./past-yearly-data', create_if_missing=False)
+    dbscan = db.iterator(prefix=prefix)
+    for v in dbscan:
+        worker(v)
+    editedPages.to_netcdf('edited-pages.nc')
