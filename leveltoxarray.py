@@ -41,17 +41,17 @@ def appendToDataset(ds: xr.Dataset, newProject: str):
         ds[newProject] = (dims, 0 * arr)
 
 
-def worker(kv):
-    key, value = kv
+def updateDataset(ds, keyval):
+    key, value = keyval
     print(key)
     # return key
     value = json.loads(value)
     for item in value['items']:
-        appendToDataset(editedPages, item['project'])
-        vec = editedPages[item['project']]
+        appendToDataset(ds, item['project'])
+        vec = ds[item['project']]
         for key, value in item.items():
             key = dashToCamelCase(key)
-            if key in editedPages.coords:
+            if key in ds.coords:
                 vec = vec.loc[dict([[key, value]])]
         if len(vec.coords.dims) != 1:
             raise ValueError('data does not fully specify non-time axes')
@@ -64,17 +64,17 @@ def worker(kv):
             if len(vals) != 1:
                 raise ValueError('More than one data element found in result')
             vec.loc[t] = vals[0]
-    editedPages.to_netcdf('edited-pages.nc')
+    ds.to_netcdf('edited-pages.nc')
 
 
 if __name__ == '__main__':
-    editedPages = endpointToDataset(endpoint, 'en.wikipedia')
+    endpointToDataset(endpoint, 'en.wikipedia')
     appendToDataset(editedPages, 'fr.wikipedia')
 
     prefix = bytes(endpoints.BASE_URL + endpoint[:endpoint.find('{')], 'utf8')
 
     db = plyvel.DB('./past-yearly-data', create_if_missing=False)
     dbscan = db.iterator(prefix=prefix)
-    for v in dbscan:
-        worker(v)
+    for res in dbscan:
+        updateDataset(editedPages, res)
     editedPages.to_netcdf('edited-pages.nc')
