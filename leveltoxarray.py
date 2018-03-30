@@ -4,10 +4,8 @@ import pandas as pd
 import plyvel
 import json
 import re
-import hashlib
-
+import itertools as it
 import endpoints
-endpoint = endpoints.URLS[0]
 
 
 def dashToCamelCase(s: str) -> str:
@@ -44,11 +42,11 @@ def appendToDataset(ds: xr.Dataset, newProject: str):
 
 def updateDataset(ds, keyval):
     key, value = keyval
-    hashed = hashlib.sha256(key).hexdigest()
-    if hashed in ds.attrs:
-        return False
-    print(key)
     value = json.loads(value)
+    project = value['items'][0]['project']
+    if 'done-' + project in ds.attrs:
+        return ''
+    print(key)
     for item in value['items']:
         appendToDataset(ds, item['project'])
         vec = ds[item['project']]
@@ -67,25 +65,34 @@ def updateDataset(ds, keyval):
             if len(vals) != 1:
                 raise ValueError('More than one data element found in result')
             vec.loc[t] = vals[0]
-    ds.attrs[hashed] = 1
-    return True
+    return project
 
 
 if __name__ == '__main__':
     import os
+
+    endpoint = endpoints.URLS[0]
     filename = 'edited-pages.nc'
+
     try:
         editedPages = xr.open_dataset(filename)
     except FileNotFoundError:
-        editedPages = endpointToDataset(endpoint, 'en.wikipedia')
-        appendToDataset(editedPages, 'fr.wikipedia')
+        editedPages = endpointToDataset(endpoint, 'init')
 
     prefix = bytes(endpoints.BASE_URL + endpoint[:endpoint.find('{')], 'utf8')
 
     db = plyvel.DB('./past-yearly-data', create_if_missing=False)
 
     dbscan = db.iterator(prefix=prefix)
-    for res in dbscan:
-        if updateDataset(editedPages, res):
+    dbgrouped = it.groupby(
+        dbscan,
+        lambda kv: kv[0][:len(endpoints.BASE_URL) + len('XY.wikipedia') + endpoint.find('{')])
+
+    for (group, groupit) in dbgrouped:
+        print('\nGROUP ', group)
+        for res in groupit:
+            project = updateDataset(editedPages, res)
+        if len(project):
+            editedPages.attrs['done-' + project] = 1
             editedPages.to_netcdf(filename + '2')
             os.rename(filename + '2', filename)
