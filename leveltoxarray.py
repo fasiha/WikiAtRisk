@@ -50,29 +50,41 @@ def updateDataset(ds, keyval):
     for item in value['items']:
         appendToDataset(ds, item['project'])
         vec = ds[item['project']]
+        if 'granularity' in item and item['granularity'] != 'daily':
+            raise ValueError("Don't yet know how to deal with non-daily data")
         for key, value in item.items():
             key = dashToCamelCase(key)
             if key in ds.coords:
                 vec = vec.loc[dict([[key, value]])]
         if len(vec.coords.dims) != 1:
             raise ValueError('data does not fully specify non-time axes')
-        # Note how we don't deal with granularities other than daily FIXME
-        for result in item['results']:
-            # copy to avoid overwriting the data, in case we need it later
-            result = dict(result)
-            t = result.pop('timestamp')
-            vals = list(result.values())
-            if len(vals) != 1:
-                raise ValueError('More than one data element found in result')
-            vec.loc[t] = vals[0]
+        if 'timestamp' in item:
+            # `devices` and `views` will be here
+            if 'views' in item:
+                vec.loc[item['timestamp']] = item['views']
+            elif 'devices' in item:
+                vec.loc[item['timestamp']] = item['devices']
+        else:
+            for result in item['results']:
+                # copy to avoid overwriting the data, in case we need it later
+                result = dict(result)
+                t = result.pop('timestamp')
+                vals = list(result.values())
+                if len(vals) != 1:
+                    raise ValueError('More than one data element found in result')
+                vec.loc[t] = vals[0]
     return project
 
 
 if __name__ == '__main__':
     import os
 
-    endpoint = endpoints.URLS[0]
-    filename = 'edited-pages.nc'
+    fi = lambda s: len(s) and s != 'metrics' and s != 'aggregate' and s[0] != '{'
+    dbnames = list(map(lambda s: '_'.join(filter(fi, s.split('/'))), endpoints.URLS))
+
+    endidx = 1
+    endpoint = endpoints.URLS[endidx]
+    filename = dbnames[endidx] + '.nc'
 
     try:
         editedPages = xr.open_dataset(filename)
