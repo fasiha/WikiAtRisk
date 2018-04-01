@@ -92,9 +92,11 @@ def updateDataset(ds, keyval):
             vec = dataArrayAndKeysToCut(ds[thisProject], item, False)
             for result in item['results']:
                 t = result['timestamp']
+                tvec = vec.loc[t]
+                tvecPageId = vecPageId.loc[t]
                 for (topidx, top) in enumerate(result['top']):
-                    vec.loc[t, topidx] = top['edits']
-                    vecPageId.loc[t, topidx] = int(top['page_id'])
+                    tvec[topidx] = top['edits']
+                    tvecPageId[topidx] = int(top['page_id'])
 
         else:
             vec = dataArrayAndKeysToCut(ds[thisProject], item)
