@@ -21,7 +21,7 @@ type Access = 'desktop'|'mobile-app'|'mobile-web'|'all-access';
 type Agent = 'user'|'spider'|'all-agents';
 
 function urlTemplateToKeys(template: string) {
-  return (template.match(/{[^}]+}/g) || []).map(s => s.slice(1, -1)).map(dashCaseToCamel);
+  return (template.match(/{[^}]+}/g) || []).map(s => s.slice(1, -1)).map(s => dashCaseToCamel(s));
 }
 
 function templateArgsToURL(urlTemplate: string, args: any) {
