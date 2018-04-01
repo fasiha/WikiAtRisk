@@ -1,7 +1,7 @@
+import plyvel
 import xarray as xr
 import numpy as np
 import pandas as pd
-import plyvel
 import json
 import re
 import itertools as it
@@ -23,21 +23,44 @@ def endpointToDataset(endpoint: str,
     combinations = list(map(lambda key: endpoints.defaultCombinations[key], keys))
     alldims = ['time'] + keys
     allcoords = [t] + combinations
+    size = [t.size] + list(map(len, combinations))
+    top = endpoint.find('/top-by-edits/') >= 0
+    if top:
+        alldims += ['topidx']
+        allcoords += [np.arange(100)]
+        size += [100]
+        dtype = np.int32
     ds = xr.Dataset()
-    ds[project] = (alldims, np.zeros([t.size] + list(map(len, combinations)), dtype=dtype))
+    ds[project] = (alldims, np.zeros(size, dtype=dtype))
     for dim, coord in zip(alldims, allcoords):
         ds.coords[dim] = coord
+    if top:
+        dtype = np.int64
+        project += '-page_id'
+        ds[project] = (alldims, np.zeros(size, dtype=dtype))
+        for dim, coord in zip(alldims, allcoords):
+            ds.coords[dim] = coord
     return ds
 
 
-def appendToDataset(ds: xr.Dataset, newProject: str):
+def appendToDataset(ds: xr.Dataset, newProject: str, like=None):
     if len(ds.data_vars) == 0:
         raise ValueError('dataset needs to have at least one data variable')
     if newProject not in ds:
-        existing = list(ds.data_vars.values())[0]
+        existing = ds[like or (list(it.islice(ds.data_vars, 1))[0])]
         arr = existing.values
         dims = existing.coords.dims
-        ds[newProject] = (dims, 0 * arr)
+        ds[newProject] = (dims, np.zeros_like(arr))
+
+
+def dataArrayAndKeysToCut(da, keyvals, full=True):
+    for key, value in keyvals.items():
+        key = dashToCamelCase(key)
+        if key in da.coords:
+            da = da.loc[dict([[key, value]])]
+    if full and len(da.coords.dims) != 1:
+        raise ValueError('data does not fully specify non-time axes')
+    return da
 
 
 def updateDataset(ds, keyval):
@@ -48,23 +71,33 @@ def updateDataset(ds, keyval):
         return ''
     print(key)
     for item in value['items']:
-        appendToDataset(ds, item['project'])
-        vec = ds[item['project']]
+        thisProject = item['project']
+        appendToDataset(ds, thisProject)
         if 'granularity' in item and item['granularity'] != 'daily':
             raise ValueError("Don't yet know how to deal with non-daily data")
-        for key, value in item.items():
-            key = dashToCamelCase(key)
-            if key in ds.coords:
-                vec = vec.loc[dict([[key, value]])]
-        if len(vec.coords.dims) != 1:
-            raise ValueError('data does not fully specify non-time axes')
+
         if 'timestamp' in item:
+            vec = dataArrayAndKeysToCut(ds[thisProject], item)
             # `devices` and `views` will be here
             if 'views' in item:
                 vec.loc[item['timestamp']] = item['views']
             elif 'devices' in item:
                 vec.loc[item['timestamp']] = item['devices']
+
+        elif "top" in item['results'][0]:
+            pageIdList = list(it.islice(filter(lambda s: s.find('-page_id') >= 0, ds.data_vars), 1))
+            thisPageId = thisProject + '-page_id'
+            appendToDataset(ds, thisPageId, like=pageIdList[0])
+            vecPageId = dataArrayAndKeysToCut(ds[thisPageId], item, False)
+            vec = dataArrayAndKeysToCut(ds[thisProject], item, False)
+            for result in item['results']:
+                t = result['timestamp']
+                for (topidx, top) in enumerate(result['top']):
+                    vec.loc[t, topidx] = top['edits']
+                    vecPageId.loc[t, topidx] = int(top['page_id'])
+
         else:
+            vec = dataArrayAndKeysToCut(ds[thisProject], item)
             for result in item['results']:
                 # copy to avoid overwriting the data, in case we need it later
                 result = dict(result)
@@ -82,7 +115,7 @@ if __name__ == '__main__':
     fi = lambda s: len(s) and s != 'metrics' and s != 'aggregate' and s[0] != '{'
     dbnames = list(map(lambda s: '_'.join(filter(fi, s.split('/'))), endpoints.URLS))
 
-    endidx = 1
+    endidx = -1
     endpoint = endpoints.URLS[endidx]
     filename = dbnames[endidx] + '.nc'
 
