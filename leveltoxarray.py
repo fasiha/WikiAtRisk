@@ -66,7 +66,15 @@ def dataArrayAndKeysToCut(da, keyvals, full=True):
 def updateDataset(ds, keyval):
     key, value = keyval
     value = json.loads(value)
+    if 'type' in value:
+        if value['type'].find('errors/unknown_error') >= 0:
+            raise ValueError('unknown error in ' + key.decode('utf8') + ', delete and redownload?')
+        elif value['type'].find('errors/not_found') >= 0:
+            print('not_found in ' + key.decode('utf8') + ', skipping')
+            return ''
+
     project = value['items'][0]['project']
+
     if 'done-' + project in ds.attrs:
         return ''
     print(key)

@@ -39,6 +39,14 @@ if (require.main === module) {
                forEach(x => console.log(x.key + '=>' + x.value)),
                ) })
     },
+    noproj : {
+      f : (async () => { pipe(
+               fromStream(db.createReadStream()),
+               map(({ key, value }) => ({ key, value : JSON.parse(value) })),
+               filter(({ value }) => !(value.items && value.items[0] && value.items[0].project)),
+               forEach(x => console.log(x.key + '=>' + JSON.stringify(x.value))),
+               ) })
+    },
     resultsKeys : {
       f : (() => {
         pipe(
