@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 import json
 import re
+import os
+import hashlib
 import itertools as it
 import endpoints
 
@@ -73,10 +75,10 @@ def updateDataset(ds, keyval):
             print('not_found in ' + key.decode('utf8') + ', skipping')
             return ''
 
-    project = value['items'][0]['project']
+    hashed = hashlib.md5(key).hexdigest()
+    if hashed in ds.attrs:
+        return 0
 
-    if 'done-' + project in ds.attrs:
-        return ''
     print(key)
     for item in value['items']:
         thisProject = item['project']
@@ -120,38 +122,52 @@ def updateDataset(ds, keyval):
                 if len(vals) != 1:
                     raise ValueError('More than one data element found in result')
                 vec.loc[t] = vals[0]
-    return project
+    ds.attrs[hashed] = True
+    return 1
 
 
-if __name__ == '__main__':
-    import os
+def whichEndpoint(url):
+    endpoint = list(
+        filter(lambda ns: ns[1] == url[:len(ns[1])].decode('utf8'),
+               map(lambda ns: [ns[0], endpoints.BASE_URL + ns[1][:ns[1].find('{')]],
+                   enumerate(endpoints.URLS))))
+    if len(endpoint) != 1:
+        raise ValueError('could not determine endpoint for ', url)
+    return endpoints.URLS[endpoint[0][0]]
 
+
+def groupToDataset(group):
+    endpoint, iterator = group
+    print(endpoint)
     fi = lambda s: len(s) and s != 'metrics' and s != 'aggregate' and s[0] != '{'
-    dbnames = list(map(lambda s: '_'.join(filter(fi, s.split('/'))), endpoints.URLS))
-
-    endidx = -1
-    endpoint = endpoints.URLS[endidx]
-    filename = dbnames[endidx] + '.nc'
-
+    filename = '_'.join(filter(fi, endpoint.split('/'))) + '.nc'
     try:
         editedPages = xr.open_dataset(filename)
     except FileNotFoundError:
         editedPages = endpointToDataset(endpoint, 'init')
-
-    prefix = bytes(endpoints.BASE_URL + endpoint[:endpoint.find('{')], 'utf8')
-
-    db = plyvel.DB('./past-yearly-data', create_if_missing=False)
-
-    dbscan = db.iterator(prefix=prefix)
-    dbgrouped = it.groupby(
-        dbscan,
-        lambda kv: kv[0][:len(endpoints.BASE_URL) + len('XY.wikipedia') + endpoint.find('{')])
-
-    for (group, groupit) in dbgrouped:
-        print('\nGROUP ', group)
-        for res in groupit:
-            project = updateDataset(editedPages, res)
-        if len(project):
-            editedPages.attrs['done-' + project] = 1
+    processed = 0
+    for res in iterator:
+        processed += updateDataset(editedPages, res)
+        if processed % 1 == 0:
             editedPages.to_netcdf(filename + '2')
             os.rename(filename + '2', filename)
+    editedPages.to_netcdf(filename + '2')
+    os.rename(filename + '2', filename)
+    return endpoint
+
+
+if __name__ == '__main__':
+    db = plyvel.DB('./past-yearly-data', create_if_missing=False)
+    dbscan = db.iterator()
+    dbgrouped = it.groupby(dbscan, lambda kv: whichEndpoint(kv[0]))
+    for x in dbgrouped:
+        groupToDataset(x)
+    # import concurrent.futures
+    # from multiprocessing import Pool
+    # with concurrent.futures.ProcessPoolExecutor(max_workers=3) as executor:
+    #     executor.map(groupToDataset, dbgrouped)
+    # with Pool(2) as p:
+    #     tmp = p.imap_unordered(groupToDataset, dbgrouped)
+    #     print(list(tmp))
+    # from joblib import Parallel, delayed
+    # Parallel(n_jobs=2)(delayed(groupToDataset)(x) for x in dbgrouped)
