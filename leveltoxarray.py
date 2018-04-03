@@ -73,7 +73,7 @@ def updateDataset(ds, keyval):
             raise ValueError('unknown error in ' + key.decode('utf8') + ', delete and redownload?')
         elif value['type'].find('errors/not_found') >= 0:
             print('not_found in ' + key.decode('utf8') + ', skipping')
-            return ''
+            return 0
 
     hashed = hashlib.md5(key).hexdigest()
     if hashed in ds.attrs:
@@ -87,12 +87,17 @@ def updateDataset(ds, keyval):
             raise ValueError("Don't yet know how to deal with non-daily data")
 
         if 'timestamp' in item:
-            vec = dataArrayAndKeysToCut(ds[thisProject], item)
             # `devices` and `views` will be here
+            # Lucky the dataset's time axis is called "time" and not "timestamp"!
+            vec = dataArrayAndKeysToCut(ds[thisProject], item)
+            t = item['timestamp']
+            # `views` e.g. is indexed by hours so it might have YYDDMMHH
+            if len(t) == len('2018010200'):
+                t += '00'
             if 'views' in item:
-                vec.loc[item['timestamp']] = item['views']
+                vec.loc[t] = item['views']
             elif 'devices' in item:
-                vec.loc[item['timestamp']] = item['devices']
+                vec.loc[t] = item['devices']
 
         elif "top" in item['results'][0]:
             pageIdList = list(it.islice(filter(lambda s: s.find('-page_id') >= 0, ds.data_vars), 1))
