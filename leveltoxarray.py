@@ -170,12 +170,3 @@ if __name__ == '__main__':
     dbgrouped = it.groupby(dbscan, lambda kv: whichEndpoint(kv[0]))
     for x in dbgrouped:
         groupToDataset(x)
-    # import concurrent.futures
-    # from multiprocessing import Pool
-    # with concurrent.futures.ProcessPoolExecutor(max_workers=3) as executor:
-    #     executor.map(groupToDataset, dbgrouped)
-    # with Pool(2) as p:
-    #     tmp = p.imap_unordered(groupToDataset, dbgrouped)
-    #     print(list(tmp))
-    # from joblib import Parallel, delayed
-    # Parallel(n_jobs=2)(delayed(groupToDataset)(x) for x in dbgrouped)
