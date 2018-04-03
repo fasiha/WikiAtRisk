@@ -122,7 +122,7 @@ def updateDataset(ds, keyval):
                 if len(vals) != 1:
                     raise ValueError('More than one data element found in result')
                 vec.loc[t] = vals[0]
-    ds.attrs[hashed] = True
+    ds.attrs[hashed] = '1'
     return 1
 
 
@@ -134,6 +134,11 @@ def whichEndpoint(url):
     if len(endpoint) != 1:
         raise ValueError('could not determine endpoint for ', url)
     return endpoints.URLS[endpoint[0][0]]
+
+
+def saveAndMove(ds, filename):
+    ds.to_netcdf(filename + '2')
+    os.rename(filename + '2', filename)
 
 
 def groupToDataset(group):
@@ -148,11 +153,9 @@ def groupToDataset(group):
     processed = 0
     for res in iterator:
         processed += updateDataset(editedPages, res)
-        if processed % 1 == 0:
-            editedPages.to_netcdf(filename + '2')
-            os.rename(filename + '2', filename)
-    editedPages.to_netcdf(filename + '2')
-    os.rename(filename + '2', filename)
+        if processed % 30 == 0:
+            saveAndMove(editedPages, filename)
+    saveAndMove(editedPages, filename)
     return endpoint
 
 
