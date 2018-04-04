@@ -80,56 +80,61 @@ def updateDataset(ds, keyval):
         return 0
 
     print(key)
-    for item in value['items']:
-        thisProject = item['project']
-        appendToDataset(ds, thisProject)
-        if 'granularity' in item and item['granularity'] != 'daily':
-            raise ValueError("Don't yet know how to deal with non-daily data")
 
-        if 'timestamp' in item:
-            # `devices` and `views` will be here
-            # Lucky the dataset's time axis is called "time" and not "timestamp"!
-            vec = dataArrayAndKeysToCut(ds[thisProject], item)
-            t = item['timestamp']
-            # `views` e.g. is indexed by hours so it might have YYDDMMHH
-            if len(t) == len('2018010200'):
-                t += '00'
-            if 'views' in item:
-                vec.loc[t] = item['views']
-            elif 'devices' in item:
-                vec.loc[t] = item['devices']
+    # quick setup and checks
+    item = value['items'][0]
+    thisProject = item['project']
+    appendToDataset(ds, thisProject)
+    if 'granularity' in item and item['granularity'] != 'daily':
+        raise ValueError("Don't yet know how to deal with non-daily data")
 
-        elif "top" in item['results'][0]:
-            pageIdList = list(it.islice(filter(lambda s: s.find('-page_id') >= 0, ds.data_vars), 1))
-            thisPageId = thisProject + '-page_id'
-            appendToDataset(ds, thisPageId, like=pageIdList[0])
-
-            vecPageId = dataArrayAndKeysToCut(ds[thisPageId], item, False)
-            pageIdArr = vecPageId.loc[item['results'][0]['timestamp']:item['results'][-1][
-                'timestamp']].values
-
-            vec = dataArrayAndKeysToCut(ds[thisProject], item, False)
-            vecArr = vec.loc[item['results'][0]['timestamp']:item['results'][-1][
-                'timestamp']].values
-
-            for ridx, result in enumerate(item['results']):
-                t = result['timestamp']
-
-                tmp = [x['edits'] for x in result['top']]
-                vecArr[ridx, :len(tmp)] = tmp
-
-                # x['page_id'] can be `null`??
-                tmp = [int(x['page_id'] or 0) for x in result['top']]
-                pageIdArr[ridx, :len(tmp)] = tmp
-
+    if 'timestamp' in value['items'][0]:
+        vec = dataArrayAndKeysToCut(ds[thisProject], item)
+        # `views` e.g. is indexed by hours so it might have YYDDMMHH
+        fix = lambda t: (t + '00') if len(t) == len('2018010200') else t
+        arr = vec.loc[fix(value['items'][0]['timestamp']):fix(value['items'][-1][
+            'timestamp'])].values
+        key = 'views' if 'views' in item else 'devices'
+        if len(value['items']) != arr.size:
+            # See https://wikimedia.org/api/rest_v1/metrics/pageviews/aggregate/en.wikipedia/mobile-app/spider/daily/20150101/20160101
+            # A whole year, only three days with a *mobile* spider. Just iterate in those cases.
+            for item in value['items']:
+                vec.loc[fix(item['timestamp'])] = item[key]
         else:
-            k = list(filter(lambda s: s != 'timestamp', item['results'][0].keys()))[0]
-            vals = list(map(lambda x: x[k], item['results']))
-            vec = dataArrayAndKeysToCut(ds[thisProject], item)
-            subvec = vec.loc[item['results'][0]['timestamp']:item['results'][-1]['timestamp']]
-            if subvec.size != len(vals):
-                raise ValueError('sub-vector data dimensions mismatch')
-            subvec[:] = vals
+            vals = list(map(lambda item: item[key], value['items']))
+            arr[:] = vals
+    else:
+        for item in value['items']:
+            if "top" in item['results'][0]:
+                pageIdList = list(
+                    it.islice(filter(lambda s: s.find('-page_id') >= 0, ds.data_vars), 1))
+                thisPageId = thisProject + '-page_id'
+                appendToDataset(ds, thisPageId, like=pageIdList[0])
+
+                vecPageId = dataArrayAndKeysToCut(ds[thisPageId], item, False)
+                pageIdArr = vecPageId.loc[item['results'][0]['timestamp']:item['results'][-1][
+                    'timestamp']].values
+
+                vec = dataArrayAndKeysToCut(ds[thisProject], item, False)
+                vecArr = vec.loc[item['results'][0]['timestamp']:item['results'][-1][
+                    'timestamp']].values
+
+                for ridx, result in enumerate(item['results']):
+                    tmp = [x['edits'] for x in result['top']]
+                    vecArr[ridx, :len(tmp)] = tmp
+
+                    # x['page_id'] can be `null`??
+                    tmp = [int(x['page_id'] or 0) for x in result['top']]
+                    pageIdArr[ridx, :len(tmp)] = tmp
+
+            else:
+                k = list(filter(lambda s: s != 'timestamp', item['results'][0].keys()))[0]
+                vals = list(map(lambda x: x[k], item['results']))
+                vec = dataArrayAndKeysToCut(ds[thisProject], item)
+                subvec = vec.loc[item['results'][0]['timestamp']:item['results'][-1]['timestamp']]
+                if subvec.size != len(vals):
+                    raise ValueError('sub-vector data dimensions mismatch')
+                subvec[:] = vals
     ds.attrs[hashed] = '1'
     return 1
 
