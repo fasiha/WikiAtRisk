@@ -158,9 +158,10 @@ def groupToDataset(group):
     processed = 0
     for res in iterator:
         processed += updateDataset(editedPages, res)
-        if processed % 30 == 0:
+        if processed > 30:
+            processed = 0
             saveAndMove(editedPages, filename)
-    saveAndMove(editedPages, filename)
+    if processed > 0: saveAndMove(editedPages, filename)
     return endpoint
 
 
