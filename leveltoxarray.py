@@ -5,7 +5,6 @@ import pandas as pd
 import json
 import re
 import os
-import hashlib
 import itertools as it
 import endpoints
 
@@ -75,12 +74,6 @@ def updateDataset(ds, keyval):
             print('not_found in ' + key.decode('utf8') + ', skipping')
             return 0
 
-    hashed = hashlib.md5(key).hexdigest()
-    if hashed in ds.attrs:
-        return 0
-
-    print(key)
-
     # quick setup and checks
     item = value['items'][0]
     thisProject = item['project']
@@ -135,7 +128,6 @@ def updateDataset(ds, keyval):
                 if subvec.size != len(vals):
                     raise ValueError('sub-vector data dimensions mismatch')
                 subvec[:] = vals
-    ds.attrs[hashed] = '1'
     return 1
 
 
@@ -149,33 +141,42 @@ def whichEndpoint(url):
     return endpoints.URLS[endpoint[0][0]]
 
 
+def whichLanguage(url, endpoint):
+    lang = url[len(endpoints.BASE_URL) + endpoint.find('{project}'):]
+    return lang[:lang.find(b'/')].decode('utf8')
+
+
+def whichEndpointLanguage(url):
+    endpoint = whichEndpoint(url)
+    return {"endpoint": endpoint, "language": whichLanguage(url, endpoint)}
+
+
 def saveAndMove(ds, filename):
     ds.to_netcdf(filename + '2')
     os.rename(filename + '2', filename)
 
 
 def groupToDataset(group):
-    endpoint, iterator = group
-    print(endpoint)
+    endlang, iterator = group
+    endpoint = endlang['endpoint']
+    language = endlang['language']
+    print(endlang)
     fi = lambda s: len(s) and s != 'metrics' and s != 'aggregate' and s[0] != '{'
-    filename = '_'.join(filter(fi, endpoint.split('/'))) + '.nc'
+    filename = 'latest/{e}__{l}.nc'.format(e='_'.join(filter(fi, endpoint.split('/'))), l=language)
     try:
         editedPages = xr.open_dataset(filename)
+        return
     except FileNotFoundError:
-        editedPages = endpointToDataset(endpoint, 'init')
-    processed = 0
+        editedPages = endpointToDataset(endpoint, language)
     for res in iterator:
-        processed += updateDataset(editedPages, res)
-        if processed > 300:
-            processed = 0
-            saveAndMove(editedPages, filename)
-    if processed > 0: saveAndMove(editedPages, filename)
+        updateDataset(editedPages, res)
+    saveAndMove(editedPages, filename)
     return endpoint
 
 
 if __name__ == '__main__':
     db = plyvel.DB('./past-yearly-data', create_if_missing=False)
     dbscan = db.iterator()
-    dbgrouped = it.groupby(dbscan, lambda kv: whichEndpoint(kv[0]))
+    dbgrouped = it.groupby(dbscan, lambda kv: whichEndpointLanguage(kv[0]))
     for x in dbgrouped:
         groupToDataset(x)
