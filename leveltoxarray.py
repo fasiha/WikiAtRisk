@@ -103,19 +103,24 @@ def updateDataset(ds, keyval):
             pageIdList = list(it.islice(filter(lambda s: s.find('-page_id') >= 0, ds.data_vars), 1))
             thisPageId = thisProject + '-page_id'
             appendToDataset(ds, thisPageId, like=pageIdList[0])
+
             vecPageId = dataArrayAndKeysToCut(ds[thisPageId], item, False)
+            pageIdArr = vecPageId.loc[item['results'][0]['timestamp']:item['results'][-1][
+                'timestamp']].values
+
             vec = dataArrayAndKeysToCut(ds[thisProject], item, False)
-            for result in item['results']:
+            vecArr = vec.loc[item['results'][0]['timestamp']:item['results'][-1][
+                'timestamp']].values
+
+            for ridx, result in enumerate(item['results']):
                 t = result['timestamp']
 
-                tvec = vec.loc[t]
                 tmp = [x['edits'] for x in result['top']]
-                tvec.values[:len(tmp)] = tmp
+                vecArr[ridx, :len(tmp)] = tmp
 
                 # x['page_id'] can be `null`??
                 tmp = [int(x['page_id'] or 0) for x in result['top']]
-                tvecPageId = vecPageId.loc[t]
-                tvecPageId.values[:len(tmp)] = tmp
+                pageIdArr[ridx, :len(tmp)] = tmp
 
         else:
             k = list(filter(lambda s: s != 'timestamp', item['results'][0].keys()))[0]
