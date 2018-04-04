@@ -118,14 +118,13 @@ def updateDataset(ds, keyval):
                 tvecPageId.values[:len(tmp)] = tmp
 
         else:
+            k = list(filter(lambda s: s != 'timestamp', item['results'][0].keys()))[0]
+            vals = list(map(lambda x: x[k], item['results']))
             vec = dataArrayAndKeysToCut(ds[thisProject], item)
-            df = vec.to_pandas()
-            for result in item['results']:
-                t = result['timestamp']
-                keys = list(filter(lambda s: s != 'timestamp', result.keys()))
-                if len(keys) != 1:
-                    raise ValueError('More than one data element found in result')
-                df.at[t] = result[keys[0]]
+            subvec = vec.loc[item['results'][0]['timestamp']:item['results'][-1]['timestamp']]
+            if subvec.size != len(vals):
+                raise ValueError('sub-vector data dimensions mismatch')
+            subvec[:] = vals
     ds.attrs[hashed] = '1'
     return 1
 
