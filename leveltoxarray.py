@@ -119,14 +119,13 @@ def updateDataset(ds, keyval):
 
         else:
             vec = dataArrayAndKeysToCut(ds[thisProject], item)
+            df = vec.to_pandas()
             for result in item['results']:
-                # copy to avoid overwriting the data, in case we need it later
-                result = dict(result)
-                t = result.pop('timestamp')
-                vals = list(result.values())
-                if len(vals) != 1:
+                t = result['timestamp']
+                keys = list(filter(lambda s: s != 'timestamp', result.keys()))
+                if len(keys) != 1:
                     raise ValueError('More than one data element found in result')
-                vec.loc[t] = vals[0]
+                df.at[t] = result[keys[0]]
     ds.attrs[hashed] = '1'
     return 1
 
