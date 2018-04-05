@@ -76,20 +76,50 @@ def plotSpectralEstimate(f, phi, note='', recip=False, nperseg=None, axes=None):
     # plt.savefig('period.svg')
 
 
+def aliaze(f, fs, nperiods=1):
+    offset = np.arange(-abs(nperiods), abs(nperiods) + .5) * fs
+    if len(offset) == 0: offset = 0
+    lo = np.floor(f / (fs / 2)) * (fs / 2)
+    hi = lo + fs / 2
+    underLo = lo - (f - lo)
+    overHi = hi + (hi - f)
+    return (np.hstack([f, overHi]) + offset[:, np.newaxis]).ravel()
+
+
+def aliasFreq(f, fs):
+    lo = np.floor(f / fs) * fs
+    hi = lo + fs
+    return np.min(np.abs([lo - f, hi - f]))
+
+
 nperseg = 6 * 365
-welcher = lambda spectralStart: welch(
+spectralStart = 2100
+welched = welch(
     edits.values[:, spectralStart:],
+    fs=365.,
+    window='boxcar',
+    nperseg=nperseg,
+    noverlap=int(nperseg * .1),
+    nfft=1024 * 32,
+    detrend='constant')
+ax = plotSpectralEstimate(*welched, ' (Welch, constant)', nperseg=nperseg, recip=True)
+ax[-1].set_ylim((1e-7, max(ax[-1].get_ylim())))
+[plt.savefig('welch.{}'.format(f)) for f in 'svg,png'.split(',')]
+
+fracs = [.1, .3, .5, .7, .9]
+toperiod = lambda fp: [365 / fp[0], fp[1]]
+ws = list(map(toperiod, map(lambda n: welch(
+    edits.values[0, 2100:],
     fs=365.,
     window='hann',
     nperseg=nperseg,
-    noverlap=int(nperseg * .9),
+    noverlap=int(nperseg * n),
     nfft=1024 * 32,
-    detrend='linear')
-ax = None
-for spectralStart in [500, 2100]:
-    ax = plotSpectralEstimate(
-        *welcher(spectralStart), ' (Welch)', nperseg=nperseg, recip=True, axes=ax)
-[plt.savefig('welch.{}'.format(f)) for f in 'svg,png'.split(',')]
+    detrend='linear'), fracs)))
+plt.figure()
+plt.loglog(*sum(map(list, ws), []))
+plt.legend(list(map(lambda f: '{}% overlap'.format(f), fracs)))
+plt.xlabel('period (days)')
 
 fP, phiP = periodogram(
     edits[:, spectralStart:].values, fs=365., window='boxcar', detrend='linear', nfft=1024 * 32)
