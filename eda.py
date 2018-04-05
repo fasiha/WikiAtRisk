@@ -46,32 +46,54 @@ plt.savefig('editors.svg')
 
 from scipy.signal import periodogram, welch, stft
 
-f, phi = periodogram(
-    edits[:, 2100:].values, fs=365., window='boxcar', detrend='linear', nfft=1024 * 32)
 
-f, phi = welch(
-    edits.values,
+def plotSpectralEstimate(f, phi, note='', recip=False, nperseg=None, axes=None):
+    if axes is None:
+        fig, axes = plt.subplots(len(langs), 1, sharex=True, sharey=True)
+    period = 365. / f
+    for i, (lang, line) in enumerate(zip(langs, phi)):
+        axes[i].loglog(period if recip else f, line / line.max(), color='C{}'.format(i))
+        axes[i].set_ylabel(lang)
+    for ax in axes:
+        plt.setp(ax.get_yticklabels(), visible=False)
+        plt.setp(ax.get_yticklines(), visible=False)
+        plt.setp(ax.get_xticklines(), visible=False)
+    for ax in axes[:-1]:
+        plt.setp(ax.get_xticklabels(), visible=False)
+    axes[-1].set_xlabel('period (days)' if recip else "cycles per year")
+    axes[0].set_title('Cyclicity in daily editors' + note)
+    if nperseg:
+        if recip:
+            lo = 10**np.ceil(np.log10(nperseg))
+            lo = nperseg * 1.2
+            hi = np.min(axes[0].get_xlim())
+        else:
+            lo = 10**np.floor(np.log10(365 / nperseg)) * .8
+            hi = np.max(axes[0].get_xlim())
+        axes[0].set_xlim(np.sort((lo, hi)))
+    return axes
+    # plt.savefig('period.png')
+    # plt.savefig('period.svg')
+
+
+nperseg = 6 * 365
+welcher = lambda spectralStart: welch(
+    edits.values[:, spectralStart:],
     fs=365.,
-    window='boxcar',
-    nperseg=1000,
-    noverlap=500,
+    window='hann',
+    nperseg=nperseg,
+    noverlap=int(nperseg * .9),
     nfft=1024 * 32,
     detrend='linear')
+ax = None
+for spectralStart in [500, 2100]:
+    ax = plotSpectralEstimate(
+        *welcher(spectralStart), ' (Welch)', nperseg=nperseg, recip=True, axes=ax)
+[plt.savefig('welch.{}'.format(f)) for f in 'svg,png'.split(',')]
 
-fig, axes = plt.subplots(len(langs), 1, sharex=True, sharey=True)
-for i, (lang, line) in enumerate(zip(langs, phi)):
-    axes[i].semilogx(365. / f, line / line.max(), color='C{}'.format(i))
-    axes[i].set_ylabel(lang)
-for ax in axes:
-    plt.setp(ax.get_yticklabels(), visible=False)
-    plt.setp(ax.get_yticklines(), visible=False)
-    plt.setp(ax.get_xticklines(), visible=False)
-for ax in axes[:-1]:
-    plt.setp(ax.get_xticklabels(), visible=False)
-axes[-1].set_xlabel('period (days)')
-axes[0].set_title('Cyclicity in daily editors')
-# plt.savefig('period.png')
-# plt.savefig('period.svg')
+fP, phiP = periodogram(
+    edits[:, spectralStart:].values, fs=365., window='boxcar', detrend='linear', nfft=1024 * 32)
+plotSpectralEstimate(fP, phiP, ' (periodogram)')
 
 db20 = lambda x: 20 * np.log10(np.abs(x))
 f, t, Zxx = stft(
