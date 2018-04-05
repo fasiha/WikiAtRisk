@@ -49,7 +49,13 @@ Now you're ready to run the LevelDB-to-xarray ingester:
 ```
 $ python leveltoxarray.py
 ```
-This will spit out several `.nc` NetCDF files that xarray understands. (xarray is a tensor/multidimensional version of Pandas.) **Currently work-in-progress.**
+This will spit out several `.nc` NetCDF files that xarray understands. (xarray is a tensor/multidimensional version of Pandas.)
+
+And if you want to make some interesting plots, run
+```
+$ python eda.py
+```
+and look at the nice PNGs. (**Work in progress.**)
 
 ## Data of interest
 
