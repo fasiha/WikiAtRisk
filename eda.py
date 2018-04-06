@@ -169,7 +169,7 @@ def acorrc2(arr, maxlags=None):
     return a, range(a.shape[1])
 
 
-ac, lags = acorrc2(edits.values[:, spectralStart:-1])
+ac, lags = acorrc2(edits.values[:, 1000:-1])
 plt.figure()
 plt.plot(lags, ac.T)
 plt.legend([langToData[lang]['lang'] for lang in langs])
@@ -188,29 +188,68 @@ plt.legend([langToData[lang]['lang'] for lang in langs])
 plt.title('Spectrum of ACF')
 plt.xlabel('period (days)')
 
-lidx = 1
-en = edits.values[lidx, spectralStart:-1]
-lag = 550
-lag = 2712
-lag = 184
-plt.figure()
-h, xe, ye, i = plt.hist2d(en[:-lag], en[lag:], 50)
-plt.xlabel('{} now'.format(endpoint))
-plt.ylabel('{} after {} days'.format(endpoint, lag))
-plt.title('{}'.format(langs[lidx]))
-plt.plot([0, 45e3], [0, 45e3], 'k:')
-plt.figure()
-plt.scatter(en[:-lag], en[lag:])
+
+def combineSampleMeanVar(m1, v1, n1, m2, v2, n2):
+    """See https://stats.stackexchange.com/a/43183"""
+    m = (m1 * n1 + m2 * n2) / (n1 + n2)
+    v = (n1 * (v1 + m1 * m1) + n2 * (v2 + m2 * m2)) / (n1 + n2) - m * m
+    return (m, v, n1 + n2)
 
 
-def cepstrum(y, fs=1):
-    y = detrend(y, type='linear')
-    nfft = 16 * 1024
-    f = fft.fftfreq(nfft, d=1 / fs)
-    f = fft.fftfreq(nfft, d=f[1] - f[0])
-    return (fft.fftshift(np.abs(fft.ifft(np.log(np.abs(fft.fft(y, nfft)))))), fft.fftshift(f))
+def combinecov(x1, y1, Cov1, n1, x2, y2, Cov2, n2):
+    """See botom of [1], starting with
+
+    > Likewise, there is a formula for combining the covariances of two sets...
+    
+    [1] https://en.wikipedia.org/w/index.php?title=Algorithms_for_calculating_variance&oldid=829952267#Online"""
+    x3, vx3, _ = combineSampleMeanVar(x1, Cov1[0, 0], n1, x2, Cov2[0, 0], n2)
+    y3, vy3, _ = combineSampleMeanVar(y1, Cov1[1, 1], n1, y2, Cov2[1, 1], n2)
+    Ca = Cov1[0, 1] * n1
+    Cb = Cov2[0, 1] * n2
+    Cc = Ca + Cb + (x1 - x2) * (y1 - y2) * n1 * n2 / (n1 + n2)
+    c = Cc / (n1 + n2)
+    Cov3 = np.array([[vx3, c], [c, vy3]])
+    return (x3, y3, Cov3, n1 + n2)
 
 
-c, f = cepstrum(en, 365.)
-plt.figure()
-plt.semilogy(f, c)
+def testCombinecov():
+    first = combinecov(1, 20, np.zeros((2, 2)), 1, 2, 21.1, np.zeros((2, 2)), 1)
+    firstCov = np.cov([[1, 2.], [20, 21.1]], bias=True)
+    assert np.allclose(first[2], firstCov)
+
+    secondCov = np.cov([[1, 2, -1.1], [20, 21.1, 19.5]], bias=True)
+    second = combinecov(*first, -1.1, 19.5, np.zeros((2, 2)), 1)
+    assert np.allclose(second[2], secondCov)
+
+    thirdCov = np.cov([[1, 2, 1, 2, -1.1], [20, 21.1, 20, 21.1, 19.5]], bias=True)
+    third = combinecov(*first, *second)
+    assert np.allclose(third[2], thirdCov)
+
+    full = np.random.randn(2, 5)
+    fullCov = np.cov(full, bias=True)
+    combined = combinecov(
+        np.mean(full[0, :2]), np.mean(full[1, :2]), np.cov(full[:, :2], bias=True), 2,
+        np.mean(full[0, 2:]), np.mean(full[1, 2:]), np.cov(full[:, 2:], bias=True), 3)
+    assert np.allclose(combined[2], fullCov)
+    return True
+
+
+def raggedsToArr(corr):
+    arr = np.array([corr[0]])
+    width = arr.shape[1]
+    for row in corr[1:]:
+        stack = np.repeat(row, int(np.ceil(width / len(row))))[:width]
+        arr = np.vstack([arr, stack])
+    return arr
+
+
+def corrscan(y, lag):
+    a = y[lag:]
+    b = y[:-lag]
+    corr = []
+    units = [(a, b, np.zeros((2, 2)), 1) for a, b in zip(a, b)]
+    while len(units) > 1:
+        suf = [] if len(units) % 2 == 0 else [units[-1]]
+        units = [combinecov(*l, *r) for l, r in zip(units[::2], units[1::2])] + suf
+        corr.append([Cov[1, 0] / np.prod(np.sqrt(np.diag(Cov))) for _, _, Cov, _ in units])
+    return raggedsToArr(corr)
