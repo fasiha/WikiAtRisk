@@ -248,12 +248,7 @@ def corrscan(y, lag):
         units = [combinecov(*l, *r) for l, r in zip(units[::2], units[1::2])] + suf
         corr.append(
             [(Cov[1, 0] / (np.prod(np.sqrt(np.diag(Cov))) or 1), n) for _, _, Cov, n in units])
-    return raggedLenToArr(corr)
-
-
-en = edits.values[0, :-1]
-chist = corrscan(en, 365)
-ten = edits['time'][:-365 - 1]
+    return (corr)
 
 
 def extents(f):
@@ -261,16 +256,103 @@ def extents(f):
     return [f[0] - delta / 2, f[-1] + delta / 2]
 
 
-def myim(*args, **kwargs):
+def myim(x, y, *args, **kwargs):
     plt.imshow(
         *args,
         **kwargs,
         aspect='auto',
         interpolation='none',
-        # extent=extents(x) + extents(y),
+        extent=extents(x) + extents(y),
         origin='lower')
 
 
+def sliding(x, nperseg, noverlap=0, f=lambda x: x):
+    hop = nperseg - noverlap
+    return [
+        f(x[i:min(len(x), i + nperseg)]) for i in range(0, hop + len(x) - nperseg, hop)
+        if i < len(x)  # needed for noverlap<0
+    ]
+
+
+from functools import reduce
+combinecovs = lambda v: reduce(lambda sample1, sample2: combinecov(*sample1, *sample2), v)
+
+
+def slidingCorrScan(y, lag, nperseg=None, noverlap=None):
+    a = y[lag:]
+    b = y[:-lag]
+    nperseg = nperseg or len(a) // 8
+    noverlap = noverlap or nperseg // 2
+    corr = []
+    idxs = list(map(lambda n: range(n, n + 1), range(len(a))))
+    while len(idxs) > 1:
+        idxs = sliding(idxs, nperseg, noverlap,
+                       lambda ranges: range(ranges[0][0], 1 + ranges[-1][-1]))
+        corr.append([(np.corrcoef([a[idx], b[idx]])[0, 1], len(idx), idx[0]) for idx in idxs])
+        nperseg = 2
+        noverlap = 1
+    return (corr)
+
+
+def weightedLenToArr(lst):
+    width = lst[-1][0][1]
+    arr = np.zeros((len(lst), width))
+    for i, row in enumerate(lst):
+        data = np.array(row)
+        corrs = data[:, 0]
+        weights = data[:, 1]
+        weights /= weights.sum()
+        repeats = np.floor(weights * width).astype(int)
+        leftover = width - repeats.sum()
+        assert (leftover < width)
+        repeats[:leftover] += 1
+        assert (repeats.sum() == width)
+        arr[i, :] = np.repeat(corrs, repeats)
+    return arr
+
+
+def lenStartToArr(lst):
+    width = lst[-1][0][1]
+    arr = np.zeros((len(lst), width))
+    for i, row in enumerate(lst):
+        data = np.array(row)
+        corrs = data[:, 0]
+        starts = data[:, 2].astype(int)
+        tmp = np.zeros(width)
+        tmp[starts[0]] = corrs[0]
+        tmp[starts[1:]] = np.diff(corrs)
+        arr[i, :] = np.cumsum(tmp)
+    return arr
+
+
+# cs = lenStartToArr(cslide)
+
+lagwanted = 365
+en = edits.values[0, :-1]
+cslide = slidingCorrScan(en, lagwanted, 500, 400)
+
 plt.figure()
-myim(chist)
+cs = lenStartToArr(cslide)
+myim(np.arange(len(en)), [x[0][1] for x in cslide], cs)
+plt.clim((0, 1))
+plt.colorbar()
+plt.title('Sliding correlation coefficient for {} days'.format(lagwanted))
+plt.xlabel('days')
+# I like this view I think. For each (X, Y) pixel, X days and Y window length (also days), it says
+# "The Y-long window of time starting at X is (not) correlated with the Y-long window starting at
+# X-365 days".
+
+plt.figure()
+myim(np.arange(len(en)), [x[0][1] for x in cslide], weightedLenToArr(cslide))
+plt.clim((0, 1))
+plt.colorbar()
+plt.title('Sliding correlation coefficient for {} days'.format(lagwanted))
+plt.xlabel('days')
+
+cragged = corrscan(en, 365)
+chist = raggedLenToArr(cragged)
+ten = edits['time'][:-365 - 1]
+
+plt.figure()
+myim(np.arange(chist.shape[1]), np.arange(chist.shape[0]), chist)
 plt.colorbar()
