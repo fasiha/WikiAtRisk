@@ -234,13 +234,8 @@ def testCombinecov():
     return True
 
 
-def raggedsToArr(corr):
-    arr = np.array([corr[0]])
-    width = arr.shape[1]
-    for row in corr[1:]:
-        stack = np.repeat(row, int(np.ceil(width / len(row))))[:width]
-        arr = np.vstack([arr, stack])
-    return arr
+def raggedLenToArr(corr):
+    return np.vstack([np.hstack([np.repeat(coef, n) for coef, n in row]) for row in corr])
 
 
 def corrscan(y, lag):
@@ -251,5 +246,31 @@ def corrscan(y, lag):
     while len(units) > 1:
         suf = [] if len(units) % 2 == 0 else [units[-1]]
         units = [combinecov(*l, *r) for l, r in zip(units[::2], units[1::2])] + suf
-        corr.append([Cov[1, 0] / np.prod(np.sqrt(np.diag(Cov))) for _, _, Cov, _ in units])
-    return raggedsToArr(corr)
+        corr.append(
+            [(Cov[1, 0] / (np.prod(np.sqrt(np.diag(Cov))) or 1), n) for _, _, Cov, n in units])
+    return raggedLenToArr(corr)
+
+
+en = edits.values[0, :-1]
+chist = corrscan(en, 365)
+ten = edits['time'][:-365 - 1]
+
+
+def extents(f):
+    delta = f[1] - f[0]
+    return [f[0] - delta / 2, f[-1] + delta / 2]
+
+
+def myim(*args, **kwargs):
+    plt.imshow(
+        *args,
+        **kwargs,
+        aspect='auto',
+        interpolation='none',
+        # extent=extents(x) + extents(y),
+        origin='lower')
+
+
+plt.figure()
+myim(chist)
+plt.colorbar()
