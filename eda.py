@@ -234,10 +234,6 @@ def testCombinecov():
     return True
 
 
-def raggedLenToArr(corr):
-    return np.vstack([np.hstack([np.repeat(coef, n) for coef, n in row]) for row in corr])
-
-
 def corrscan(y, lag):
     a = y[lag:]
     b = y[:-lag]
@@ -274,10 +270,6 @@ def sliding(x, nperseg, noverlap=0, f=lambda x: x):
     ]
 
 
-from functools import reduce
-combinecovs = lambda v: reduce(lambda sample1, sample2: combinecov(*sample1, *sample2), v)
-
-
 def slidingCorrScan(y, lag, nperseg=None, noverlap=None):
     a = y[lag:]
     b = y[:-lag]
@@ -294,23 +286,6 @@ def slidingCorrScan(y, lag, nperseg=None, noverlap=None):
     return (corr)
 
 
-def weightedLenToArr(lst):
-    width = lst[-1][0][1]
-    arr = np.zeros((len(lst), width))
-    for i, row in enumerate(lst):
-        data = np.array(row)
-        corrs = data[:, 0]
-        weights = data[:, 1]
-        weights /= weights.sum()
-        repeats = np.floor(weights * width).astype(int)
-        leftover = width - repeats.sum()
-        assert (leftover < width)
-        repeats[:leftover] += 1
-        assert (repeats.sum() == width)
-        arr[i, :] = np.repeat(corrs, repeats)
-    return arr
-
-
 def lenStartToArr(lst):
     width = lst[-1][0][1]
     arr = np.zeros((len(lst), width))
@@ -325,34 +300,20 @@ def lenStartToArr(lst):
     return arr
 
 
-# cs = lenStartToArr(cslide)
-
-lagwanted = 365
 en = edits.values[0, :-1]
-cslide = slidingCorrScan(en, lagwanted, 500, 400)
+
+lagwanted = 7
+cslide = slidingCorrScan(en, lagwanted, 100, 80)
+cs = lenStartToArr(cslide)
 
 plt.figure()
-cs = lenStartToArr(cslide)
 myim(np.arange(len(en)), [x[0][1] for x in cslide], cs)
-plt.clim((0, 1))
 plt.colorbar()
 plt.title('Sliding correlation coefficient for {} days'.format(lagwanted))
 plt.xlabel('days')
+
 # I like this view I think. For each (X, Y) pixel, X days and Y window length (also days), it says
 # "The Y-long window of time starting at X is (not) correlated with the Y-long window starting at
 # X-365 days".
 
-plt.figure()
-myim(np.arange(len(en)), [x[0][1] for x in cslide], weightedLenToArr(cslide))
-plt.clim((0, 1))
-plt.colorbar()
-plt.title('Sliding correlation coefficient for {} days'.format(lagwanted))
-plt.xlabel('days')
-
-cragged = corrscan(en, 365)
-chist = raggedLenToArr(cragged)
 ten = edits['time'][:-365 - 1]
-
-plt.figure()
-myim(np.arange(chist.shape[1]), np.arange(chist.shape[0]), chist)
-plt.colorbar()
