@@ -253,13 +253,15 @@ def extents(f):
 
 
 def myim(x, y, *args, **kwargs):
-    plt.imshow(
+    fig, ax = plt.subplots()
+    im = ax.imshow(
         *args,
         **kwargs,
         aspect='auto',
         interpolation='none',
         extent=extents(x) + extents(y),
         origin='lower')
+    return fig, ax, im
 
 
 def sliding(x, nperseg, noverlap=0, f=lambda x: x):
@@ -270,19 +272,19 @@ def sliding(x, nperseg, noverlap=0, f=lambda x: x):
     ]
 
 
-def slidingCorrScan(y, lag, nperseg=None, noverlap=None):
+def slidingCorrScan(y, lag, nperseg=None, noverlap=None, nperseg2=2, noverlap2=1, finallen=1):
     a = y[lag:]
     b = y[:-lag]
     nperseg = nperseg or len(a) // 8
     noverlap = noverlap or nperseg // 2
     corr = []
     idxs = list(map(lambda n: range(n, n + 1), range(len(a))))
-    while len(idxs) > 1:
+    while len(idxs) > finallen:
         idxs = sliding(idxs, nperseg, noverlap,
                        lambda ranges: range(ranges[0][0], 1 + ranges[-1][-1]))
         corr.append([(np.corrcoef([a[idx], b[idx]])[0, 1], len(idx), idx[0]) for idx in idxs])
-        nperseg = 2
-        noverlap = 1
+        nperseg = nperseg2
+        noverlap = noverlap2
     return (corr)
 
 
@@ -296,24 +298,50 @@ def lenStartToArr(lst):
         tmp = np.zeros(width)
         tmp[starts[0]] = corrs[0]
         tmp[starts[1:]] = np.diff(corrs)
+        tmp[starts[-1] + 1:] = np.nan
         arr[i, :] = np.cumsum(tmp)
     return arr
 
 
+import matplotlib.dates as mdates
 en = edits.values[0, :-1]
 
-lagwanted = 7
-cslide = slidingCorrScan(en, lagwanted, 100, 80)
-cs = lenStartToArr(cslide)
+lagswanted = [7, 365]
+cslides = [slidingCorrScan(en, lagwanted, 100, 80) for lagwanted in lagswanted]
 
-plt.figure()
-myim(np.arange(len(en)), [x[0][1] for x in cslide], cs)
-plt.colorbar()
-plt.title('Sliding correlation coefficient for {} days'.format(lagwanted))
-plt.xlabel('days')
+ten = edits['time'][:-365 - 1]
+ts = mdates.date2num(ten)
+for cslide, lagwanted in zip(cslides, lagswanted):
+    fig, ax, im = myim(ts, [x[0][1] for x in cslide], lenStartToArr(cslide))
+    ax.xaxis_date()
+    ax.set_xlabel("window's start date")
+    ax.set_ylabel('window length (days)')
+    im.set_clim((0, 1))
+    fig.colorbar(im)
+    ax.set_title('Sliding correlation coefficient for {} days later'.format(lagwanted))
 
 # I like this view I think. For each (X, Y) pixel, X days and Y window length (also days), it says
 # "The Y-long window of time starting at X is (not) correlated with the Y-long window starting at
 # X-365 days".
 
-ten = edits['time'][:-365 - 1]
+ns = [30, 60, 90]
+ns = [30]
+
+fig, ax = plt.subplots(len(langs), 1, sharex=True, sharey=True)
+for i, lang in enumerate(langs):
+    en = edits.values[i, :-1]
+    a = en[:-7]
+    b = en[7:]
+    for nperseg in ns:
+        c = sliding(range(len(a)), nperseg, nperseg - 1, lambda r: np.corrcoef(a[r], b[r])[0, 1])
+        tenc = sliding(range(len(a)), nperseg, nperseg - 1, lambda r: edits['time'].values[r[0]])
+        ax[i].plot(tenc, c)
+        ax[i].set_ylabel(lang)
+for a in ax:
+    plt.setp(a.get_yticklabels(), visible=False)
+    plt.setp(a.get_yticklines(), visible=False)
+    plt.setp(a.get_xticklines(), visible=False)
+for a in ax[:-1]:
+    plt.setp(a.get_xticklabels(), visible=False)
+ax[0].set_title('Sliding corrcoef for 7 day lag, 30 days training')
+# fig.autofmt_xdate()
