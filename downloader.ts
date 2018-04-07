@@ -9,7 +9,7 @@ const flatMap = require('callbag-flat-map-operator');
 const dashCaseToCamel: (s: string) => string = require('camelcase');
 
 const BASE_URL = 'https://wikimedia.org/api/rest_v1';
-const MINIMUM_THROTTLE_DELAY_MS = 530; // 15 -> 66 requests per second
+const MINIMUM_THROTTLE_DELAY_MS = 280; // 15 -> 66 requests per second
 
 import {URLS, defaultCombinations} from './endpoints';
 

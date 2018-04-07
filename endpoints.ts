@@ -18,5 +18,5 @@ export const defaultCombinations: any = {
   accessSite : 'desktop-site,mobile-site'.split(','),
   access : 'desktop,mobile-app,mobile-web'.split(','),
   agent : 'user,spider'.split(','),
-  activityLevel : 'all-activity-levels'.split(',')
+  activityLevel : '1..4-edits,5..24-edits,25..99-edits,100..-edits'.split(',')
 };
