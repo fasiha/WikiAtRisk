@@ -8,3 +8,5 @@ bin/
 include/
 __pycache__/
 *.nc
+*.png
+*.svg
