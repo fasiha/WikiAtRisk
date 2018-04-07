@@ -1,9 +1,12 @@
 import xarray as xr
 import json
-import numpy as np
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
+import numpy as np
+import numpy.fft as fft
+from scipy.signal import welch, hamming
+import matplotlib.dates as mdates
 
 plt.style.use('ggplot')
 plt.ion()
@@ -50,8 +53,6 @@ plt.title('Daily active Wikipedia {}'.format(endpoint))
 plt.savefig('editors.png')
 plt.savefig('editors.svg')
 
-from scipy.signal import periodogram, welch, stft
-
 
 def plotSpectralEstimate(f, phi, note='', recip=False, nperseg=None, axes=None):
     if axes is None:
@@ -82,80 +83,24 @@ def plotSpectralEstimate(f, phi, note='', recip=False, nperseg=None, axes=None):
     # plt.savefig('period.svg')
 
 
-def aliaze(f, fs, nperiods=1):
-    offset = np.arange(-abs(nperiods), abs(nperiods) + .5) * fs
-    if len(offset) == 0: offset = 0
-    lo = np.floor(f / (fs / 2)) * (fs / 2)
-    hi = lo + fs / 2
-    underLo = lo - (f - lo)
-    overHi = hi + (hi - f)
-    return (np.hstack([f, overHi]) + offset[:, np.newaxis]).ravel()
-
-
-def aliasFreq(f, fs):
-    lo = np.floor(f / fs) * fs
-    hi = lo + fs
-    return np.min(np.abs([lo - f, hi - f]))
-
-
 nperseg = 6 * 365
 spectralStart = 2100
 welched = welch(
-    edits.values[:, spectralStart:],
+    edits.values[:, spectralStart:-1],
     fs=365.,
     window='boxcar',
     nperseg=nperseg,
     noverlap=int(nperseg * .1),
     nfft=1024 * 32,
-    detrend='constant')
-ax = plotSpectralEstimate(*welched, ' (Welch, constant)', nperseg=nperseg, recip=True)
-ax[-1].set_ylim((1e-7, max(ax[-1].get_ylim())))
-[plt.savefig('welch.{}'.format(f)) for f in 'svg,png'.split(',')]
-
-fracs = [.1, .3, .5, .7, .9]
-toperiod = lambda fp: [365 / fp[0], fp[1]]
-ws = list(map(toperiod, map(lambda n: welch(
-    edits.values[0, 2100:],
-    fs=365.,
-    window='hann',
-    nperseg=nperseg,
-    noverlap=int(nperseg * n),
-    nfft=1024 * 32,
-    detrend='linear'), fracs)))
-plt.figure()
-plt.loglog(*sum(map(list, ws), []))
-plt.legend(list(map(lambda f: '{}% overlap'.format(f), fracs)))
-plt.xlabel('period (days)')
-
-fP, phiP = periodogram(
-    edits[:, spectralStart:].values, fs=365., window='boxcar', detrend='linear', nfft=1024 * 32)
-plotSpectralEstimate(fP, phiP, ' (periodogram)')
-
-db20 = lambda x: 20 * np.log10(np.abs(x))
-f, t, Zxx = stft(
-    edits.values,
-    fs=365.,
-    window='boxcar',
-    nperseg=365,
-    noverlap=360,
-    nfft=1024 * 16,
     detrend='linear')
-en = db20(np.squeeze(Zxx[0, :, :]))
-en -= en.max()
 plt.figure()
-m = plt.pcolormesh(2001 + t, f, en, vmax=0, vmin=-60)
-plt.xlabel('year')
-plt.ylabel('cycles/year')
-
-from scipy.signal import correlate
-
-
-def acorrBiased(y):
-    """Obtain the biased autocorrelation and its lags
-  """
-    r = correlate(y, y) / len(y)
-    l = np.arange(-(len(y) - 1), len(y))
-    return r, l
+plt.loglog(365 / welched[0], welched[1].T)
+plt.legend([langToData[lang]['lang'] for lang in langs])
+plt.xlabel('period (days)')
+plt.ylabel('spectral density')
+plt.title('{} Welch spectrum: {} year chunks, starting {}'.format(
+    endpoint, nperseg // 365, '{}'.format(edits['time'][2100].values)[:10]))
+plt.ylim((1e-4, max(plt.ylim())))
 
 
 def acorrc(y, maxlags=None):
@@ -164,29 +109,57 @@ def acorrc(y, maxlags=None):
     return a, range(len(a))
 
 
-def acorrc2(arr, maxlags=None):
+def acorrcArr(arr, maxlags=None):
     a = np.vstack([acorrc(y, maxlags=maxlags)[0] for y in arr])
     return a, range(a.shape[1])
 
 
-ac, lags = acorrc2(edits.values[:, 1000:-1])
+ac, lags = acorrcArr(edits.values[:, spectralStart:-1])
 plt.figure()
 plt.plot(lags, ac.T)
 plt.legend([langToData[lang]['lang'] for lang in langs])
 plt.xlabel('lag (days)')
 plt.ylabel('correlation')
-plt.title('Auto-correlation btw days(-1 to +1), {}'.format(endpoint))
-
-import numpy.fft as fft
-from scipy.signal import detrend, hamming
+plt.title('Auto-correlation (-1 to +1) between days, {}'.format(endpoint))
 
 acf = np.abs(fft.rfft(hamming(ac.shape[1]) * ac, n=1024 * 16, axis=-1))
 fac = fft.rfftfreq(16 * 1024, d=1 / 365)
 plt.figure()
 plt.loglog(365 / fac, acf.T)
 plt.legend([langToData[lang]['lang'] for lang in langs])
-plt.title('Spectrum of ACF')
+plt.title("Auto-correlation's spectrum, {}".format(endpoint))
 plt.xlabel('period (days)')
+
+
+def sliding(x, nperseg, noverlap=0, f=lambda x: x):
+    hop = nperseg - noverlap
+    return [
+        f(x[i:min(len(x), i + nperseg)]) for i in range(0, hop + len(x) - nperseg, hop)
+        if i < len(x)  # needed for noverlap<0
+    ]
+
+
+ns = [30]
+
+fig, ax = plt.subplots(len(langs), 1, sharex=True, sharey=True)
+for i, lang in enumerate(langs):
+    en = edits.values[i, :-1]
+    a = en[:-7]
+    b = en[7:]
+    for nperseg in ns:
+        c = sliding(range(len(a)), nperseg, nperseg - 1, lambda r: np.corrcoef(a[r], b[r])[0, 1])
+        tenc = sliding(range(len(a)), nperseg, nperseg - 1, lambda r: edits['time'].values[r[0]])
+        ax[i].plot(tenc, c)
+        ax[i].set_ylabel(lang)
+for a in ax:
+    plt.setp(a.get_yticklabels(), visible=False)
+    plt.setp(a.get_yticklines(), visible=False)
+    plt.setp(a.get_xticklines(), visible=False)
+for a in ax[:-1]:
+    plt.setp(a.get_xticklabels(), visible=False)
+ax[0].set_title('Sliding correlation for 7 day lag, 30 days training, {}'.format(endpoint))
+
+# fig.autofmt_xdate()
 
 
 def combineSampleMeanVar(m1, v1, n1, m2, v2, n2):
@@ -264,14 +237,6 @@ def myim(x, y, *args, **kwargs):
     return fig, ax, im
 
 
-def sliding(x, nperseg, noverlap=0, f=lambda x: x):
-    hop = nperseg - noverlap
-    return [
-        f(x[i:min(len(x), i + nperseg)]) for i in range(0, hop + len(x) - nperseg, hop)
-        if i < len(x)  # needed for noverlap<0
-    ]
-
-
 def slidingCorrScan(y, lag, nperseg=None, noverlap=None, nperseg2=2, noverlap2=1, finallen=1):
     a = y[lag:]
     b = y[:-lag]
@@ -303,45 +268,22 @@ def lenStartToArr(lst):
     return arr
 
 
-import matplotlib.dates as mdates
 en = edits.values[0, :-1]
 
 lagswanted = [7, 365]
 cslides = [slidingCorrScan(en, lagwanted, 100, 80) for lagwanted in lagswanted]
 
-ten = edits['time'][:-365 - 1]
-ts = mdates.date2num(ten)
 for cslide, lagwanted in zip(cslides, lagswanted):
+    ten = edits['time'][:-lagwanted - 1]
+    ts = mdates.date2num(ten)
     fig, ax, im = myim(ts, [x[0][1] for x in cslide], lenStartToArr(cslide))
     ax.xaxis_date()
     ax.set_xlabel("window's start date")
     ax.set_ylabel('window length (days)')
     im.set_clim((0, 1))
     fig.colorbar(im)
-    ax.set_title('Sliding correlation coefficient for {} days later'.format(lagwanted))
+    ax.set_title('Sliding correlations, {} days later, {}'.format(lagwanted, endpoint))
 
 # I like this view I think. For each (X, Y) pixel, X days and Y window length (also days), it says
 # "The Y-long window of time starting at X is (not) correlated with the Y-long window starting at
 # X-365 days".
-
-ns = [30, 60, 90]
-ns = [30]
-
-fig, ax = plt.subplots(len(langs), 1, sharex=True, sharey=True)
-for i, lang in enumerate(langs):
-    en = edits.values[i, :-1]
-    a = en[:-7]
-    b = en[7:]
-    for nperseg in ns:
-        c = sliding(range(len(a)), nperseg, nperseg - 1, lambda r: np.corrcoef(a[r], b[r])[0, 1])
-        tenc = sliding(range(len(a)), nperseg, nperseg - 1, lambda r: edits['time'].values[r[0]])
-        ax[i].plot(tenc, c)
-        ax[i].set_ylabel(lang)
-for a in ax:
-    plt.setp(a.get_yticklabels(), visible=False)
-    plt.setp(a.get_yticklines(), visible=False)
-    plt.setp(a.get_xticklines(), visible=False)
-for a in ax[:-1]:
-    plt.setp(a.get_xticklabels(), visible=False)
-ax[0].set_title('Sliding corrcoef for 7 day lag, 30 days training')
-# fig.autofmt_xdate()
