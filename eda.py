@@ -139,25 +139,29 @@ def sliding(x, nperseg, noverlap=0, f=lambda x: x):
     ]
 
 
+lagswanted = [7, 365]
 ns = [30]
-
-fig, ax = plt.subplots(len(langs), 1, sharex=True, sharey=True)
-for i, lang in enumerate(langs):
-    en = edits.values[i, :-1]
-    a = en[:-7]
-    b = en[7:]
-    for nperseg in ns:
-        c = sliding(range(len(a)), nperseg, nperseg - 1, lambda r: np.corrcoef(a[r], b[r])[0, 1])
-        tenc = sliding(range(len(a)), nperseg, nperseg - 1, lambda r: edits['time'].values[r[0]])
-        ax[i].plot(tenc, c)
-        ax[i].set_ylabel(lang)
-for a in ax:
-    plt.setp(a.get_yticklabels(), visible=False)
-    plt.setp(a.get_yticklines(), visible=False)
-    plt.setp(a.get_xticklines(), visible=False)
-for a in ax[:-1]:
-    plt.setp(a.get_xticklabels(), visible=False)
-ax[0].set_title('Sliding correlation for 7 day lag, 30 days training, {}'.format(endpoint))
+for lagwanted in lagswanted:
+    fig, ax = plt.subplots(len(langs), 1, sharex=True, sharey=True)
+    for i, lang in enumerate(langs):
+        en = edits.values[i, :-1]
+        a = en[:-lagwanted]
+        b = en[lagwanted:]
+        for nperseg in ns:
+            c = sliding(
+                range(len(a)), nperseg, nperseg - 1, lambda r: np.corrcoef(a[r], b[r])[0, 1])
+            tenc = sliding(
+                range(len(a)), nperseg, nperseg - 1, lambda r: edits['time'].values[r[0]])
+            ax[i].plot(tenc, c)
+            ax[i].set_ylabel(lang)
+    for a in ax:
+        plt.setp(a.get_yticklabels(), visible=False)
+        plt.setp(a.get_yticklines(), visible=False)
+        plt.setp(a.get_xticklines(), visible=False)
+    for a in ax[:-1]:
+        plt.setp(a.get_xticklabels(), visible=False)
+    ax[0].set_title('Sliding correlation for {} day lag, 30 days training, {}'.format(
+        lagwanted, endpoint))
 
 # fig.autofmt_xdate()
 
