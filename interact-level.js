@@ -7,10 +7,18 @@ const last = require('callbag-last');
 if (require.main === module) {
   const command = process.argv[2];
   commands = {
-    ls : {
-      f : (async () => { pipe(fromStream(db.createReadStream()), forEach(x => console.log(x.key + '=>' + x.value))); })
+    ls : { f : (() => pipe(fromStream(db.createReadStream()), forEach(x => console.log(x.key + '=>' + x.value)))) },
+    rmalllll : { f : (() => pipe(fromStream(db.createKeyStream()), forEach(key => db.del(key)))) },
+    rmwildcard : {
+      f : () => {
+        let wildcard = process.argv[3];
+        if (!wildcard) {
+          console.error('Need wildcard');
+          return;
+        }
+        pipe(fromStream(db.createKeyStream()), filter(k => k.indexOf(wildcard) >= 0), forEach(k => db.del(k)));
+      }
     },
-    rmalllll : { f : (async () => { pipe(fromStream(db.createKeyStream()), forEach(key => db.del(key))); }) },
     keys : { f : (async () => { pipe(fromStream(db.createKeyStream()), forEach(x => console.log(x))); }) },
     get : {
       f : (async () => {

@@ -59,6 +59,8 @@ def dataArrayAndKeysToCut(da, keyvals, full=True):
         key = dashToCamelCase(key)
         if key in da.coords:
             da = da.loc[dict([[key, value]])]
+            # FIXME this might fail because leveldb contains values for keys that ds lacks
+            # because endpoints.py doesn't specify them: this will then fail.
     if full and len(da.coords.dims) != 1:
         raise ValueError('data does not fully specify non-time axes')
     return da
@@ -160,7 +162,6 @@ def groupToDataset(group):
     endlang, iterator = group
     endpoint = endlang['endpoint']
     language = endlang['language']
-    print(endlang)
     fi = lambda s: len(s) and s != 'metrics' and s != 'aggregate' and s[0] != '{'
     filename = 'latest/{e}__{l}.nc'.format(e='_'.join(filter(fi, endpoint.split('/'))), l=language)
     try:
@@ -168,6 +169,7 @@ def groupToDataset(group):
         return
     except FileNotFoundError:
         editedPages = endpointToDataset(endpoint, language)
+    print(endlang)
     for res in iterator:
         updateDataset(editedPages, res)
     saveAndMove(editedPages, filename)
