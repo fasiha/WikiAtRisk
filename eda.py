@@ -15,19 +15,39 @@ with open('wikilangs.json', 'r') as f:
 langToData = {o['prefix']: o for o in wikilangs}
 
 langs = 'en,fr,ja,ru,zh,ar,he'.split(',')
-endpoint = 'bytes-difference_net'
+endpoint = 'pageviews'
+endpoint = 'unique-devices'
 endpoint = 'editors'
+endpoint = 'bytes-difference_net'
+endpoint = 'edits'
 ds = xr.merge(
     [xr.open_dataset('latest/{}__{}.wikipedia.nc'.format(endpoint, lang)) for lang in langs])
 
-subdict = dict(
-    pageType='content', activityLevel='all-activity-levels', editorType=['anonymous', 'user'])
+subdict = dict(pageType='content', editorType=['anonymous', 'user'], agent='user')
 for key in list(subdict.keys()):
     if key not in ds.coords:
         del subdict[key]
-edits = ds.loc[subdict].sum('editorType')
+if 'editorType' in ds.coords:
+    edits = ds.loc[subdict].sum('editorType')
+    if 'activityLevel' in ds.coords:
+        edits.sum('activityLevel')
+if 'access' in ds.coords:
+    edits = ds.loc[subdict].sum('access')
+if 'accessSite' in ds.coords:
+    edits = ds.loc[subdict].sum('accessSite')
+
 edits = xr.concat(edits.data_vars.values(), 'lang')
 edits.coords['lang'] = langs
+
+plt.figure()
+plt.semilogy(edits.coords['time'][:-1], edits.values.T[:-1, :])
+plt.legend([langToData[lang]['lang'] for lang in langs])
+plt.xlabel('date')
+plt.ylabel(endpoint)
+plt.title('Daily Wikipedia {}'.format(endpoint))
+
+# plt.savefig('editors.png')
+# plt.savefig('editors.svg')
 
 
 def dow(lang, edits):
@@ -38,20 +58,11 @@ def dow(lang, edits):
     plt.xlabel('date')
     plt.ylabel(endpoint)
     plt.title('Daily active {} Wikipedia {}'.format(langToData[lang]['lang'], endpoint))
-    [plt.savefig('{}-dayofweek.{}'.format(lang, f)) for f in 'svg,png'.split(',')]
+    # [plt.savefig('{}-dayofweek.{}'.format(lang, f)) for f in 'svg,png'.split(',')]
 
 
 dow('en', edits)
 dow('ja', edits)
-
-plt.figure()
-plt.semilogy(edits.coords['time'][:-1], edits.values.T[:-1, :])
-plt.legend([langToData[lang]['lang'] for lang in langs])
-plt.xlabel('date')
-plt.ylabel(endpoint)
-plt.title('Daily active Wikipedia {}'.format(endpoint))
-plt.savefig('editors.png')
-plt.savefig('editors.svg')
 
 
 def plotSpectralEstimate(f, phi, note='', recip=False, nperseg=None, axes=None):
@@ -85,6 +96,7 @@ def plotSpectralEstimate(f, phi, note='', recip=False, nperseg=None, axes=None):
 
 nperseg = 6 * 365
 spectralStart = 2100
+spectralStartStr = str(edits['time'][spectralStart].values)[:10]
 welched = welch(
     edits.values[:, spectralStart:-1],
     fs=365.,
@@ -98,8 +110,8 @@ plt.loglog(365 / welched[0], welched[1].T)
 plt.legend([langToData[lang]['lang'] for lang in langs])
 plt.xlabel('period (days)')
 plt.ylabel('spectral density')
-plt.title('{} Welch spectrum: {} year chunks, starting {}'.format(
-    endpoint, nperseg // 365, '{}'.format(edits['time'][2100].values)[:10]))
+plt.title('Welch spectrum: {}, {} year chunks, starting {}'.format(endpoint, nperseg // 365,
+                                                                   spectralStartStr))
 plt.ylim((1e-4, max(plt.ylim())))
 
 
@@ -120,14 +132,14 @@ plt.plot(lags, ac.T)
 plt.legend([langToData[lang]['lang'] for lang in langs])
 plt.xlabel('lag (days)')
 plt.ylabel('correlation')
-plt.title('Auto-correlation (-1 to +1) between days, {}'.format(endpoint))
+plt.title('Auto-correlation between days, {}, starting {}'.format(endpoint, spectralStartStr))
 
 acf = np.abs(fft.rfft(hamming(ac.shape[1]) * ac, n=1024 * 16, axis=-1))
 fac = fft.rfftfreq(16 * 1024, d=1 / 365)
 plt.figure()
 plt.loglog(365 / fac, acf.T)
 plt.legend([langToData[lang]['lang'] for lang in langs])
-plt.title("Auto-correlation's spectrum, {}".format(endpoint))
+plt.title("Auto-correlation's spectrum, {}, starting {}".format(endpoint, spectralStartStr))
 plt.xlabel('period (days)')
 
 
@@ -160,8 +172,8 @@ for lagwanted in lagswanted:
         plt.setp(a.get_xticklines(), visible=False)
     for a in ax[:-1]:
         plt.setp(a.get_xticklabels(), visible=False)
-    ax[0].set_title('Sliding correlation for {} day lag, 30 days training, {}'.format(
-        lagwanted, endpoint))
+    ax[0].set_title('Sliding correlation for {} day lag, {} days training, {}'.format(
+        lagwanted, ','.join(map(str, ns)), endpoint))
 
 # fig.autofmt_xdate()
 
