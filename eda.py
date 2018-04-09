@@ -1,3 +1,4 @@
+import pandas as pd
 import xarray as xr
 import json
 import matplotlib
@@ -191,14 +192,14 @@ def combinecov(x1, y1, Cov1, n1, x2, y2, Cov2, n2):
     > Likewise, there is a formula for combining the covariances of two sets...
     
     [1] https://en.wikipedia.org/w/index.php?title=Algorithms_for_calculating_variance&oldid=829952267#Online"""
-    x3, vx3, _ = combineSampleMeanVar(x1, Cov1[0, 0], n1, x2, Cov2[0, 0], n2)
+    x3, vx3, n3 = combineSampleMeanVar(x1, Cov1[0, 0], n1, x2, Cov2[0, 0], n2)
     y3, vy3, _ = combineSampleMeanVar(y1, Cov1[1, 1], n1, y2, Cov2[1, 1], n2)
     Ca = Cov1[0, 1] * n1
     Cb = Cov2[0, 1] * n2
-    Cc = Ca + Cb + (x1 - x2) * (y1 - y2) * n1 * n2 / (n1 + n2)
-    c = Cc / (n1 + n2)
+    Cc = Ca + Cb + (x1 - x2) * (y1 - y2) * n1 * n2 / n3
+    c = Cc / n3
     Cov3 = np.array([[vx3, c], [c, vy3]])
-    return (x3, y3, Cov3, n1 + n2)
+    return (x3, y3, Cov3, n3)
 
 
 def testCombinecov():
@@ -266,7 +267,7 @@ def slidingCorrScan(y, lag, nperseg=None, noverlap=None, nperseg2=2, noverlap2=1
         corr.append([(np.corrcoef([a[idx], b[idx]])[0, 1], len(idx), idx[0]) for idx in idxs])
         nperseg = nperseg2
         noverlap = noverlap2
-    return (corr)
+    return corr
 
 
 def lenStartToArr(lst):
@@ -303,3 +304,83 @@ for cslide, lagwanted in zip(cslides, lagswanted):
 # I like this view I think. For each (X, Y) pixel, X days and Y window length (also days), it says
 # "The Y-long window of time starting at X is (not) correlated with the Y-long window starting at
 # X-365 days".
+
+# so what's going on here?
+df = pd.DataFrame(
+    lenStartToArr(cslides[1]).T,
+    index=edits['time'][:-365 - 1].values,
+    columns=[x[0][1] for x in cslides[1]])
+start = '2006-01-01'
+mincorrlag = df.loc[start].idxmin()
+mincorr = df.loc[start].loc[mincorrlag]
+startidx = df.index.get_loc(start)
+startidx = (startidx // 80) * 80  # without this, result won't exactly match `mincorr`
+actual = np.corrcoef(en[365:][startidx:startidx + mincorrlag],
+                     en[:-365][startidx:startidx + mincorrlag])
+
+start = '2005-01-01'
+mincorrlag = 365 * 4
+startidx = df.index.get_loc(start)
+startidx = (startidx // 80) * 80  # without this, result won't exactly match `mincorr`
+actual = np.corrcoef(en[365:][startidx:startidx + mincorrlag],
+                     en[:-365][startidx:startidx + mincorrlag])
+foo, bar = en[:-365][startidx:startidx + mincorrlag], en[365:][startidx:startidx + mincorrlag]
+foo = foo.reshape((4, -1))
+bar = bar.reshape((4, -1))
+plt.figure()
+[plt.scatter(x, y) for x, y in zip(foo, bar)]
+plt.xlabel('{}'.format(endpoint))
+plt.ylabel('{}, 365 days later'.format(endpoint))
+plt.title('The 2006 discontinuity')
+plt.legend(['2005/2006', '2006/2007', '2007/2008', '2008/2009'])
+# Recall that Peak Wiki happened late April 2007, but edits had been stagnant since Jan 2007.
+#
+# The tall dark vertical bar of low correlation in the sliding correlation heatmap reflects this:
+# the first half of 2006 sees rapidly-increasing edits, and 365 days later (first half of 2007) is
+# stagnant edits, which destoys collinearity.
+#
+# The second half of 2006 continued seeing rapid growth, and this correlates nicely with the second
+# half of 2007: recall that the collapse started early May 2007, but saw a dead-cat bounce in July,
+# before bottoming out in early August. August 2006 through Jan 2007 look similar enough to a year
+# later that they correlate well (~0.5).
+#
+# The presence of the high-growth portion of early 2006 in the 365-day lag correlations reduces
+# correlation values by destroying collinearity, due to its marked contrast to the first half of 2007
+# (which saw flat edits till April and then freefall May, )
+
+start = '2014-03-01'
+mincorrlag = 100
+startidx = df.index.get_loc(start)
+startidx = (startidx // 80) * 80  # without this, result won't exactly match `mincorr`
+foo, bar = en[365:][startidx:startidx + mincorrlag], en[:-365][startidx:startidx + mincorrlag]
+actual = np.corrcoef(foo, bar)
+plt.figure()
+plt.plot(foo, bar)
+# Another phase change is indicated by the dark black diagonal section of low correlation around
+# 2014. Specifically, the first half of 2014 is uncorrelated with the first half of 2015.
+# In a nutshell: 2014 continues the previous several years' drop. Most years see either flat or
+# dropping edits for the first half, then a substantial drop in mid-year that sometimes recovers
+# before the December crash. 2015 however began with a strong recovery after the holiday break,
+# followed by a robust plateau throughout the year, frequently breaking highs, and spiking edits
+# to levels last seen in early 2011.
+#
+# Correlation is low because we have a region of steady decline correlating poorly against a region
+# of stagnation-then-growth. Note how the dark region moves up and left: any window of time that
+# includes that first half of 2014 (and therefore correlates it against the first half of 2015) is
+# plagued by low correlation. However, if the segment includes much more before or after that first
+# half of 2014, the correlation returns, as this data conjoined with prior/subsequent data emulate
+# collinearity.
+
+start = '2013-02-01'
+startidx = df.index.get_loc(start)
+yrs = 2
+mincorrlag = 365 * yrs
+foo, bar = en[:-365][startidx:startidx + mincorrlag], en[365:][startidx:startidx + mincorrlag]
+resh = lambda x, n: x.ravel()[:(x.size // n) * n].reshape((n, -1))
+foo = resh(foo, yrs * 2)
+bar = resh(bar, yrs * 2)
+plt.figure()
+[plt.scatter(x, y) for x, y in zip(foo, bar)]
+plt.xlabel('{}'.format(endpoint))
+plt.ylabel('{}, 365 days later'.format(endpoint))
+plt.title('The 2014 discontinuity')
