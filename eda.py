@@ -309,7 +309,7 @@ lagswanted = [7, 365]
 cslides = [slidingCorrScan(en, lagwanted, 100, 80) for lagwanted in lagswanted]
 
 for cslide, lagwanted in zip(cslides, lagswanted):
-    ten = edits['time'][:-lagwanted - 1]
+    ten = edits['time'][:-1]
     ts = mdates.date2num(ten)
     fig, ax, im = myim(ts, [x[0][1] for x in cslide], lenStartToArrTail(cslide, lagwanted))
     ax.xaxis_date()
@@ -328,45 +328,36 @@ df = pd.DataFrame(
     lenStartToArrTail(cslides[1], lagswanted[1]).T,
     index=edits['time'].values[:-1],
     columns=[x[0][1] for x in cslides[1]])
-start = '2007-06-01'
-nwindow = 100
+enddate = '2007-06-01'
+nwindow = df.loc[enddate].idxmin()
 
-exactendidx = df.index.get_loc(start)
-arr = np.array(cslides[1][0])
+exactendidx = df.index.get_loc(enddate)
+arr = np.array(cslides[1][df.columns.get_loc(nwindow)])
 corrs, lens, starts = arr.T
 ends = starts + lagswanted[1] + lens
 endidx = (ends < exactendidx).sum()
 end = int(ends[endidx])
 actual = covToCorr(np.corrcoef(en[end - nwindow:end], en[end - nwindow - 365:end - 365]))
-expected = df.loc[start].loc[nwindow]
+expected = df.loc[enddate].loc[nwindow]
 print({'actual': actual, 'expected': expected})
 
 # Example 2
-start = '2009-01-01'
-nwindow = 1000
+enddate = '2009-01-01'
+nwindow = 365 * 3
 
-exactendidx = df.index.get_loc(start)
-arr = np.array(cslides[1][0])
-corrs, lens, starts = arr.T
-ends = starts + lagswanted[1] + lens
-endidx = (ends < exactendidx).sum()
-end = int(ends[endidx])
-actual = covToCorr(np.corrcoef(en[end - nwindow:end], en[end - nwindow - 365:end - 365]))
-expected = df.loc[start].loc[nwindow]
-print({'actual': actual, 'expected': expected})
-
+end = df.index.get_loc(enddate)
 foo, bar = en[end - nwindow:end], en[end - nwindow - 365:end - 365]
-foo = foo.reshape((4, -1))
-bar = bar.reshape((4, -1))
+foo = foo.reshape((3, -1))
+bar = bar.reshape((3, -1))
 plt.figure()
 [plt.scatter(x, y) for x, y in zip(foo, bar)]
 plt.xlabel('{}'.format(endpoint))
-plt.ylabel('{}, 365 days prior'.format(endpoint))
-plt.title('The 2006 discontinuity')
-plt.legend(['2005/2006', '2006/2007', '2007/2008', '2008/2009'])
+plt.ylabel('{}, 365 days ago'.format(endpoint))
+plt.title('The 2007 discontinuity')
+plt.legend(['2005/2006', '2006/2007', '2007/2008'])
 # Recall that Peak Wiki happened late April 2007, but edits had been stagnant since Jan 2007.
 #
-# The tall dark vertical bar of low correlation in the sliding correlation heatmap reflects this:
+# The long dark diagonal slash of low correlation in the sliding correlation heatmap reflects this:
 # the first half of 2006 sees rapidly-increasing edits, and 365 days later (first half of 2007) is
 # stagnant edits, which destoys collinearity.
 #
@@ -380,21 +371,9 @@ plt.legend(['2005/2006', '2006/2007', '2007/2008', '2008/2009'])
 # (which saw flat edits till April and then freefall May, )
 
 # Example 3
-start = '2014-06-15'
-nwindow = 100
 
-exactendidx = df.index.get_loc(start)
-arr = np.array(cslides[1][0])
-corrs, lens, starts = arr.T
-ends = starts + lagswanted[1] + lens
-endidx = (ends < exactendidx).sum()
-end = int(ends[endidx])
-actual = covToCorr(np.corrcoef(en[end - nwindow:end], en[end - nwindow - 365:end - 365]))
-expected = df.loc[start].loc[nwindow]
-print({'actual': actual, 'expected': expected})
-
-# Another phase change is indicated by the dark black diagonal section of low correlation around
-# 2014. Specifically, the first half of 2014 is uncorrelated with the first half of 2015.
+# Another phase change is indicated by the dark black vertical section of low correlation in late
+# 2015. Specifically, both halves of 2014 are uncorrelated with the both halves of 2015.
 # In a nutshell: 2014 continues the previous several years' drop. Most years see either flat or
 # dropping edits for the first half, then a substantial drop in mid-year that sometimes recovers
 # before the December crash. 2015 however began with a strong recovery after the holiday break,
@@ -402,23 +381,18 @@ print({'actual': actual, 'expected': expected})
 # to levels last seen in early 2011.
 #
 # Correlation is low because we have a region of steady decline correlating poorly against a region
-# of stagnation-then-growth. Note how the dark region moves up and left: any window of time that
-# includes that first half of 2014 (and therefore correlates it against the first half of 2015) is
-# plagued by low correlation. However, if the segment includes much more before or after that first
-# half of 2014, the correlation returns, as this data conjoined with prior/subsequent data emulate
+# of stagnation-then-growth. Note how the dark region moves up and a bit right: any window that
+# includes that last half of 2015 (and therefore correlates it against the last half of 2014) is
+# plagued by low correlation. However, if the segment includes much more before or after that last
+# half of 2015, the correlation returns, as this data conjoined with prior/subsequent data emulate
 # collinearity.
 
 # Example 4
-start = '2015-02-01'
+enddate = '2016-01-01'
 yrs = 2
 nwindow = 365 * yrs
 
-exactendidx = df.index.get_loc(start)
-arr = np.array(cslides[1][0])
-corrs, lens, starts = arr.T
-ends = starts + lagswanted[1] + lens
-endidx = (ends < exactendidx).sum()
-end = int(ends[endidx])
+end = df.index.get_loc(enddate)
 
 foo, bar = en[end - nwindow:end], en[end - nwindow - 365:end - 365]
 resh = lambda x, n: x.ravel()[:(x.size // n) * n].reshape((n, -1))
@@ -427,6 +401,6 @@ bar = resh(bar, yrs * 2)
 plt.figure()
 [plt.scatter(x, y) for x, y in zip(foo, bar)]
 plt.xlabel('{}'.format(endpoint))
-plt.ylabel('{}, 365 days later'.format(endpoint))
-plt.title('The 2014 discontinuity')
-plt.legend(list(map(lambda n: str(n), list(np.arange(yrs * 2) / 2 + 2013))))
+plt.ylabel('{}, 365 days ago'.format(endpoint))
+plt.title('The 2015 discontinuity')
+plt.legend(list(map(lambda n: str(n), list(np.arange(yrs * 2) / 2 + 2014))))
