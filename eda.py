@@ -1,5 +1,6 @@
 import pandas as pd
 import xarray as xr
+from functools import reduce
 import json
 import matplotlib
 matplotlib.use('TkAgg')
@@ -20,6 +21,7 @@ endpoint = 'pageviews'
 endpoint = 'unique-devices'
 endpoint = 'editors'
 endpoint = 'bytes-difference_net'
+endpoint = 'editors'
 endpoint = 'edits'
 ds = xr.merge(
     [xr.open_dataset('latest/{}__{}.wikipedia.nc'.format(endpoint, lang)) for lang in langs])
@@ -31,7 +33,7 @@ for key in list(subdict.keys()):
 if 'editorType' in ds.coords:
     edits = ds.loc[subdict].sum('editorType')
     if 'activityLevel' in ds.coords:
-        edits.sum('activityLevel')
+        edits = edits.sum('activityLevel')
 if 'access' in ds.coords:
     edits = ds.loc[subdict].sum('access')
 if 'accessSite' in ds.coords:
@@ -224,6 +226,10 @@ def testCombinecov():
     return True
 
 
+def combinecovs(*quads):
+    return reduce(lambda x, y: combinecov(*x, *y), quads)
+
+
 def corrscan(y, lag):
     a = y[lag:]
     b = y[:-lag]
@@ -254,6 +260,14 @@ def myim(x, y, *args, **kwargs):
     return fig, ax, im
 
 
+def makeCovQuad(x, y):
+    return (np.mean(x), np.mean(y), np.cov([x, y], bias=True), len(x))
+
+
+def covToCorr(C):
+    return C[1, 0] / np.sqrt(C[0, 0] * C[1, 1])
+
+
 def slidingCorrScan(y, lag, nperseg=None, noverlap=None, nperseg2=2, noverlap2=1, finallen=1):
     a = y[lag:]
     b = y[:-lag]
@@ -270,18 +284,22 @@ def slidingCorrScan(y, lag, nperseg=None, noverlap=None, nperseg2=2, noverlap2=1
     return corr
 
 
-def lenStartToArr(lst):
-    width = lst[-1][0][1]
+def lenStartToArrTail(lst, lag):
+    width = lst[-1][0][1] + 365
     arr = np.zeros((len(lst), width))
     for i, row in enumerate(lst):
         data = np.array(row)
         corrs = data[:, 0]
+        lens = data[:, 1].astype(int)
         starts = data[:, 2].astype(int)
-        tmp = np.zeros(width)
-        tmp[starts[0]] = corrs[0]
-        tmp[starts[1:]] = np.diff(corrs)
-        tmp[starts[-1] + 1:] = np.nan
-        arr[i, :] = np.cumsum(tmp)
+        ends = starts + lag + lens
+        tmp = np.repeat(np.nan, width)
+        for e, f, c in zip(ends[0:-1], ends[1:], corrs[1:]):
+            tmp[e:f] = c
+        dstart = starts[1] - starts[0] if starts.size > 1 else 20
+        end = np.minimum(width, ends[0])
+        tmp[(end - dstart):end] = corrs[0]
+        arr[i, :] = tmp
     return arr
 
 
@@ -293,13 +311,13 @@ cslides = [slidingCorrScan(en, lagwanted, 100, 80) for lagwanted in lagswanted]
 for cslide, lagwanted in zip(cslides, lagswanted):
     ten = edits['time'][:-lagwanted - 1]
     ts = mdates.date2num(ten)
-    fig, ax, im = myim(ts, [x[0][1] for x in cslide], lenStartToArr(cslide))
+    fig, ax, im = myim(ts, [x[0][1] for x in cslide], lenStartToArrTail(cslide, lagwanted))
     ax.xaxis_date()
-    ax.set_xlabel("window's start date")
+    ax.set_xlabel("window end date")
     ax.set_ylabel('window length (days)')
     im.set_clim((0, 1))
     fig.colorbar(im)
-    ax.set_title('Sliding correlations, {} days later, {}'.format(lagwanted, endpoint))
+    ax.set_title('Sliding correlations, {} days prior lag, {}'.format(lagwanted, endpoint))
 
 # I like this view I think. For each (X, Y) pixel, X days and Y window length (also days), it says
 # "The Y-long window of time starting at X is (not) correlated with the Y-long window starting at
@@ -307,30 +325,43 @@ for cslide, lagwanted in zip(cslides, lagswanted):
 
 # so what's going on here?
 df = pd.DataFrame(
-    lenStartToArr(cslides[1]).T,
-    index=edits['time'][:-365 - 1].values,
+    lenStartToArrTail(cslides[1], lagswanted[1]).T,
+    index=edits['time'].values[:-1],
     columns=[x[0][1] for x in cslides[1]])
-start = '2006-01-01'
-mincorrlag = df.loc[start].idxmin()
-mincorr = df.loc[start].loc[mincorrlag]
-startidx = df.index.get_loc(start)
-startidx = (startidx // 80) * 80  # without this, result won't exactly match `mincorr`
-actual = np.corrcoef(en[365:][startidx:startidx + mincorrlag],
-                     en[:-365][startidx:startidx + mincorrlag])
+start = '2007-06-01'
+nwindow = 100
 
-start = '2005-01-01'
-mincorrlag = 365 * 4
-startidx = df.index.get_loc(start)
-startidx = (startidx // 80) * 80  # without this, result won't exactly match `mincorr`
-actual = np.corrcoef(en[365:][startidx:startidx + mincorrlag],
-                     en[:-365][startidx:startidx + mincorrlag])
-foo, bar = en[:-365][startidx:startidx + mincorrlag], en[365:][startidx:startidx + mincorrlag]
+exactendidx = df.index.get_loc(start)
+arr = np.array(cslides[1][0])
+corrs, lens, starts = arr.T
+ends = starts + lagswanted[1] + lens
+endidx = (ends < exactendidx).sum()
+end = int(ends[endidx])
+actual = covToCorr(np.corrcoef(en[end - nwindow:end], en[end - nwindow - 365:end - 365]))
+expected = df.loc[start].loc[nwindow]
+print({'actual': actual, 'expected': expected})
+
+# Example 2
+start = '2009-01-01'
+nwindow = 1000
+
+exactendidx = df.index.get_loc(start)
+arr = np.array(cslides[1][0])
+corrs, lens, starts = arr.T
+ends = starts + lagswanted[1] + lens
+endidx = (ends < exactendidx).sum()
+end = int(ends[endidx])
+actual = covToCorr(np.corrcoef(en[end - nwindow:end], en[end - nwindow - 365:end - 365]))
+expected = df.loc[start].loc[nwindow]
+print({'actual': actual, 'expected': expected})
+
+foo, bar = en[end - nwindow:end], en[end - nwindow - 365:end - 365]
 foo = foo.reshape((4, -1))
 bar = bar.reshape((4, -1))
 plt.figure()
 [plt.scatter(x, y) for x, y in zip(foo, bar)]
 plt.xlabel('{}'.format(endpoint))
-plt.ylabel('{}, 365 days later'.format(endpoint))
+plt.ylabel('{}, 365 days prior'.format(endpoint))
 plt.title('The 2006 discontinuity')
 plt.legend(['2005/2006', '2006/2007', '2007/2008', '2008/2009'])
 # Recall that Peak Wiki happened late April 2007, but edits had been stagnant since Jan 2007.
@@ -348,14 +379,20 @@ plt.legend(['2005/2006', '2006/2007', '2007/2008', '2008/2009'])
 # correlation values by destroying collinearity, due to its marked contrast to the first half of 2007
 # (which saw flat edits till April and then freefall May, )
 
-start = '2014-03-01'
-mincorrlag = 100
-startidx = df.index.get_loc(start)
-startidx = (startidx // 80) * 80  # without this, result won't exactly match `mincorr`
-foo, bar = en[365:][startidx:startidx + mincorrlag], en[:-365][startidx:startidx + mincorrlag]
-actual = np.corrcoef(foo, bar)
-plt.figure()
-plt.plot(foo, bar)
+# Example 3
+start = '2014-06-15'
+nwindow = 100
+
+exactendidx = df.index.get_loc(start)
+arr = np.array(cslides[1][0])
+corrs, lens, starts = arr.T
+ends = starts + lagswanted[1] + lens
+endidx = (ends < exactendidx).sum()
+end = int(ends[endidx])
+actual = covToCorr(np.corrcoef(en[end - nwindow:end], en[end - nwindow - 365:end - 365]))
+expected = df.loc[start].loc[nwindow]
+print({'actual': actual, 'expected': expected})
+
 # Another phase change is indicated by the dark black diagonal section of low correlation around
 # 2014. Specifically, the first half of 2014 is uncorrelated with the first half of 2015.
 # In a nutshell: 2014 continues the previous several years' drop. Most years see either flat or
@@ -371,11 +408,19 @@ plt.plot(foo, bar)
 # half of 2014, the correlation returns, as this data conjoined with prior/subsequent data emulate
 # collinearity.
 
-start = '2013-02-01'
-startidx = df.index.get_loc(start)
+# Example 4
+start = '2015-02-01'
 yrs = 2
-mincorrlag = 365 * yrs
-foo, bar = en[:-365][startidx:startidx + mincorrlag], en[365:][startidx:startidx + mincorrlag]
+nwindow = 365 * yrs
+
+exactendidx = df.index.get_loc(start)
+arr = np.array(cslides[1][0])
+corrs, lens, starts = arr.T
+ends = starts + lagswanted[1] + lens
+endidx = (ends < exactendidx).sum()
+end = int(ends[endidx])
+
+foo, bar = en[end - nwindow:end], en[end - nwindow - 365:end - 365]
 resh = lambda x, n: x.ravel()[:(x.size // n) * n].reshape((n, -1))
 foo = resh(foo, yrs * 2)
 bar = resh(bar, yrs * 2)
@@ -384,3 +429,4 @@ plt.figure()
 plt.xlabel('{}'.format(endpoint))
 plt.ylabel('{}, 365 days later'.format(endpoint))
 plt.title('The 2014 discontinuity')
+plt.legend(list(map(lambda n: str(n), list(np.arange(yrs * 2) / 2 + 2013))))
