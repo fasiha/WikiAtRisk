@@ -69,7 +69,7 @@ def dow(lang, edits):
 
     resh2 = lambda x, n: x.ravel()[:(x.size // n) * n].reshape((-1, n))
     remmax = lambda x: x / np.max(x)
-    dowMedian = np.median(resh2(edits.loc['en', '2012-12-31':].values, 7), axis=0)
+    dowMedian = np.median(resh2(edits.loc[lang, '2012-12-31':].values, 7), axis=0)
     print('| Day |  Median {} | % of max |'.format(endpoint))
     print('|-----|-----------------|----------|')
     days = edits['time'].loc['2012-12-31':].to_pandas().dt.weekday_name[:7].tolist()

@@ -95,6 +95,27 @@ Raw data:
 | Saturday | 19,072 | 83.21% |
 | Sunday | 20,255 | 88.37% |
 
+Might this pattern be universal?
+
+### Figure: ditto, Japanese Wikipedia
+![Day-of-week trends of the number of editors on Japanese Wikipedia, 2013-2017](figs/2-day-of-week-ja-editors.svg)
+
+No, it isn't universal. Japanese Wikipedia for example matches my image of the commuting Wikipedian better:
+
+| Day |  Median editors | % of max |
+|-----|-----------------|----------|
+| Monday | 2,139 | 93.41% |
+| Tuesday | 2,128 | 92.93% |
+| Wednesday | 2,118 | 92.49% |
+| Thursday | 2,092 | 91.35% |
+| Friday | 2,102 | 91.79% |
+| Saturday | 2,229 | 97.34% |
+| Sunday | 2,290 | 100.00% |
+
+The graph above looks busier and less obvious, but that's mainly because the spread between the day of the week seeing the most editors—Sunday—and the least—Friday—on Japanese Wikipedia is 8%, rather than the 17% on English Wikipedia, but looking closely, the trend sems to be quite stable.
+
+Of course, this "eyeball filter" can be misled, and we should use proper techniques to detect such cyclicities.
+
 ## Data of interest
 
 Source: [Wikipedia REST API](https://wikimedia.org/api/rest_v1/#/).
