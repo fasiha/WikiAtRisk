@@ -139,6 +139,49 @@ Outside of these peaks and their harmonics, all languages show a marked decay in
 
 > DSP nerd note: for Welch's method, I used six-year temporal windows with *no* taper (boxcar window) and with 10% overlap between windows. I chose the boxcar window to maximize spectral resolution (as skinny peaks as possible), in my attempt to establish as many peaks as harmonics of base periodicities. (I also looked for peaks that may have been masked by nearby peaks by using a Hann window, I didn't find anything of interest.) I often take larger overlaps, but chose 10% because that gave more of a difference between the 1/f trend and the peaks of the spectral density. I also asked `scipy.signal.welch` to remove any linear trend in the segments before computing the FFT and averaging.
 
+### Figure: Auto-correlations of the daily editors seen on English, French, Japanese, Russian, Chinese, Arabic, and Hebrew Wikipedias, post-Peak
+The *correlation* between two sequences of numbers is a single number between 1 and -1 that indicates the linear trend between them: 1 is perfectly correlated, -1 is perfectly anti-correlated, and 0 means uncorrelated (*no* **linear** trend between them, but as Wikipedia's article on ["Correlation and dependence"](https://en.wikipedia.org/wiki/Correlation_and_dependence) illustrates, emphatically does not mean *no* trend).
+
+![Auto-correlations of the daily editors seen on English, French, Japanese, Russian, Chinese, Arabic, and Hebrew Wikipedias, post-Peak](figs/4-acf-several-langs-editors.svg)
+
+The auto-correlation of a long sequence is simply the list of correlations between the sequence and delayed versions of it, which this plot, calculated by repeated calls to [`numpy.corrcoef`](https://docs.scipy.org/doc/numpy/reference/generated/numpy.corrcoef.html), for the seven languages we've been working with. I've restricted this calculation by excluding the exponential run-up to the peak, so I consider only data after 2006 October 2. 
+- The auto-correlation at lag 0 is simply the entire sequence of daily editors seen on English Wikipedia correlated by itself: 4109 points.
+- The auto-correlation at lag 1, meanwhile, is the correlation between the *first* 4108 samples and the *last* 4108 samples, meaning, correlate the signal by a copy of itself delayed by one day.
+- The auto-correlation at lag 7 is something we're very interested in: that's the correlation between each day's editor count with that of a week later (or equivalently, a week ago).
+- Similarly, the auto-correlation at lag 365 is the correlation between each day's editor count with that of a year ago or a year later.
+
+I show this highly-zoomed-out plot to answer the question posed in the previous section: in random signals, the auto-correlation drops to and stays at zero after a short number of lags, representing the memory of the process generating it. Signals with pink noise are characterized by very long memory, and that is very obviously what we see here. The main point to note is that the number of editors contributing today is highly correlated with the number of editors seen several months, even years, ago.
+
+I do agree with your next observation, that the French and Hebrew Wikipedias' editor counts' auto-correlation drop off much faster than the others. I am not sure why this is.
+
+But let's investigate this auto-correlation function a little closer:
+
+![Auto-correlations, as above, zoomed in to two years](figs/4-acf-several-langs-editors-zoom-2y.svg)
+
+At lags of up to two years, we can make a couple of points. We can confirm the insight from Welch's spectral estimate: the auto-correlation with one year lags is greater than 0.75 for five out of our seven Wikipedias. There is a marked jump at the 365-day lag for English and especially French Wikipedias, smaller but noticeable bumps for Japanese, Russian, and Chinese Wikipedias, and almost no 365-lag-specific peaks in the Arabic and Hebrew Wikipedias.
+
+The other marked fact is that there's a high-frequency oscillation present in all these auto-correlations. Zooming in a bit further shows us its weekly periodicity:
+
+![Auto-correlations, as above, zoomed in to one month](figs/4-acf-several-langs-editors-zoom-1m.svg)
+
+We see that, to a first degree approximation, all seven languages' Wikipedias show a strong weekly correlation in editors counts. And because today's editor count is highly correlated with those a week ago (and in the future), it's also going to be correlated with those two, three, four, etc. weeks ago (and in the future), thus giving a kind of temporal harmonics.
+
+While the one-week auto-correlations for the French and Hebrew Wikipedias are the lowest out of the seven languages, they are much higher than the 2–6 day auto-correlations, while the Arabic Wikipedia shows the slightest of up-ticks at the one-week mark. Welch's spectral density for Arabic Wikipedia at the one-week period was also very weak. Here's the day-of-week table of median daily editors for the Arabic Wikipedia:
+
+| Day |  Median editors | % of max |
+|-----|-----------------|----------|
+| Monday | 545 | 100.00% |
+| Tuesday | 541 | 99.27% |
+| Wednesday | 541 | 99.27% |
+| Thursday | 508 | 93.21% |
+| Friday | 517 | 94.86% |
+| Saturday | 542 | 99.45% |
+| Sunday | 544 | 99.82% |
+
+Much of the Arab world has its weekend on Thursday and Friday, and the percentage drop of weekend editors is on the order of the Japanese Wikipedia's spike, but for some reason the auto-correlations are much weaker than Japanese Wikipedia's case.
+
+Let's dig more!
+
 (**In progress.**)
 
 ## Data of interest
