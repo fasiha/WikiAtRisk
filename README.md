@@ -57,6 +57,12 @@ $ python eda.py
 ```
 and look at the nice PNGs. (**Work in progress.**)
 
+## Exploratory data analysis
+
+Here are some interesting insights gleaned from some preliminary analysis (keeping in mind [Hamming's motto](http://www.siam.org/news/news.php?id=893), "The purpose of computation is insight, not numbers").
+
+![A semi-log plot of daily active editors on English, French, Japanese, Russian, Chinese, Arabic, Hebrew](figs/1-several-langs-editors.svg)
+
 ## Data of interest
 
 Source: [Wikipedia REST API](https://wikimedia.org/api/rest_v1/#/).

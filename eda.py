@@ -55,7 +55,7 @@ plt.legend([langToData[lang]['lang'] for lang in langs])
 plt.xlabel('date')
 plt.ylabel(endpoint)
 plt.title('Daily Wikipedia {}'.format(endpoint))
-save('1-all-data')
+save('1-several-langs-{}'.format(endpoint))
 
 
 def dow(lang, edits):
@@ -69,9 +69,9 @@ def dow(lang, edits):
 
 
 dow('en', edits)
-save('2-day-of-week-en')
+save('2-day-of-week-en-{}'.format(endpoint))
 dow('ja', edits)
-save('2-day-of-week-ja')
+save('2-day-of-week-ja-{}'.format(endpoint))
 
 
 def plotSpectralEstimate(f, phi, note='', recip=False, nperseg=None, axes=None):
@@ -120,7 +120,7 @@ plt.ylabel('spectral density')
 plt.title('Welch spectrum: {}, {} year chunks, starting {}'.format(endpoint, nperseg // 365,
                                                                    spectralStartStr))
 plt.ylim((1e-4, max(plt.ylim())))
-save('3-welch')
+save('3-welch-several-langs-{}'.format(endpoint))
 
 
 def acorrc(y, maxlags=None):
@@ -141,7 +141,7 @@ plt.legend([langToData[lang]['lang'] for lang in langs])
 plt.xlabel('lag (days)')
 plt.ylabel('correlation')
 plt.title('Auto-correlation between days, {}, starting {}'.format(endpoint, spectralStartStr))
-save('4-acf')
+save('4-acf-several-langs-{}'.format(endpoint))
 
 acf = np.abs(fft.rfft(hamming(ac.shape[1]) * ac, n=1024 * 16, axis=-1))
 fac = fft.rfftfreq(16 * 1024, d=1 / 365)
@@ -150,7 +150,7 @@ plt.loglog(365 / fac, acf.T)
 plt.legend([langToData[lang]['lang'] for lang in langs])
 plt.title("Auto-correlation's spectrum, {}, starting {}".format(endpoint, spectralStartStr))
 plt.xlabel('period (days)')
-save('5-acfspectrum')
+save('5-acfspectrum-several-langs-{}'.format(endpoint))
 
 
 def sliding(x, nperseg, noverlap=0, f=lambda x: x):
@@ -184,7 +184,7 @@ for lagwanted in lagswanted:
         plt.setp(a.get_xticklabels(), visible=False)
     ax[0].set_title('Sliding correlation for {} day lag, {} days training, {}'.format(
         lagwanted, ','.join(map(str, ns)), endpoint))
-    save('6-sliding-corr-{}'.format(lagwanted))
+    save('6-sliding-corr-{}-several-langs-{}'.format(lagwanted, endpoint))
 
 # fig.autofmt_xdate()
 
@@ -256,7 +256,7 @@ for cslide, lagwanted in zip(cslides, lagswanted):
     im.set_clim((0, 1))
     fig.colorbar(im)
     ax.set_title('Sliding correlations, {} days prior lag, {}'.format(lagwanted, endpoint))
-    save('7-sliding-heatmap-{}-{}'.format('en', lagwanted))
+    save('7-sliding-heatmap-{}-{}-{}'.format(lagwanted, 'en', endpoint))
 
 # I like this view I think. For each (X, Y) pixel, X days and Y window length (also days), it says
 # "The Y-long window of time starting at X is (not) correlated with the Y-long window starting at
@@ -294,7 +294,7 @@ plt.xlabel('{}'.format(endpoint))
 plt.ylabel('{}, 365 days ago'.format(endpoint))
 plt.title('The 2007 discontinuity')
 plt.legend(['2005/2006', '2006/2007', '2007/2008'])
-save('8-peak-wiki-en')
+save('8-peak-wiki-en-{}'.format(endpoint))
 # Recall that Peak Wiki happened late April 2007, but edits had been stagnant since Jan 2007.
 #
 # The long dark diagonal slash of low correlation in the sliding correlation heatmap reflects this:
@@ -344,4 +344,4 @@ plt.xlabel('{}'.format(endpoint))
 plt.ylabel('{}, 365 days ago'.format(endpoint))
 plt.title('The 2015 discontinuity')
 plt.legend(list(map(lambda n: str(n), list(np.arange(yrs * 2) / 2 + 2014))))
-save('9-2014-bump-en')
+save('9-2014-bump-en-{}'.format(endpoint))
