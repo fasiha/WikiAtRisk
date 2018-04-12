@@ -42,30 +42,36 @@ if 'accessSite' in ds.coords:
 edits = xr.concat(edits.data_vars.values(), 'lang')
 edits.coords['lang'] = langs
 
+
+def save(fname, num=None):
+    plt.figure(num or plt.gcf().number)
+    for ext in 'png,svg'.split(','):
+        plt.savefig(fname + '.' + ext)
+
+
 plt.figure()
 plt.semilogy(edits.coords['time'][:-1], edits.values.T[:-1, :])
 plt.legend([langToData[lang]['lang'] for lang in langs])
 plt.xlabel('date')
 plt.ylabel(endpoint)
 plt.title('Daily Wikipedia {}'.format(endpoint))
-
-# plt.savefig('editors.png')
-# plt.savefig('editors.svg')
+save('1-all-data')
 
 
 def dow(lang, edits):
     dayOfWeek = edits['time'].to_pandas().dt.weekday_name
     plt.figure()
-    [plt.plot(edits.coords['time'][start::7], edits.loc[lang][start::7]) for start in range(7)]
+    [plt.plot(edits.coords['time'][start:-1:7], edits.loc[lang][start:-1:7]) for start in range(7)]
     plt.legend(dayOfWeek[:7].values)
     plt.xlabel('date')
     plt.ylabel(endpoint)
     plt.title('Daily active {} Wikipedia {}'.format(langToData[lang]['lang'], endpoint))
-    # [plt.savefig('{}-dayofweek.{}'.format(lang, f)) for f in 'svg,png'.split(',')]
 
 
 dow('en', edits)
+save('2-day-of-week-en')
 dow('ja', edits)
+save('2-day-of-week-ja')
 
 
 def plotSpectralEstimate(f, phi, note='', recip=False, nperseg=None, axes=None):
@@ -93,8 +99,6 @@ def plotSpectralEstimate(f, phi, note='', recip=False, nperseg=None, axes=None):
             hi = np.max(axes[0].get_xlim())
         axes[0].set_xlim(np.sort((lo, hi)))
     return axes
-    # plt.savefig('period.png')
-    # plt.savefig('period.svg')
 
 
 nperseg = 6 * 365
@@ -116,6 +120,7 @@ plt.ylabel('spectral density')
 plt.title('Welch spectrum: {}, {} year chunks, starting {}'.format(endpoint, nperseg // 365,
                                                                    spectralStartStr))
 plt.ylim((1e-4, max(plt.ylim())))
+save('3-welch')
 
 
 def acorrc(y, maxlags=None):
@@ -136,6 +141,7 @@ plt.legend([langToData[lang]['lang'] for lang in langs])
 plt.xlabel('lag (days)')
 plt.ylabel('correlation')
 plt.title('Auto-correlation between days, {}, starting {}'.format(endpoint, spectralStartStr))
+save('4-acf')
 
 acf = np.abs(fft.rfft(hamming(ac.shape[1]) * ac, n=1024 * 16, axis=-1))
 fac = fft.rfftfreq(16 * 1024, d=1 / 365)
@@ -144,6 +150,7 @@ plt.loglog(365 / fac, acf.T)
 plt.legend([langToData[lang]['lang'] for lang in langs])
 plt.title("Auto-correlation's spectrum, {}, starting {}".format(endpoint, spectralStartStr))
 plt.xlabel('period (days)')
+save('5-acfspectrum')
 
 
 def sliding(x, nperseg, noverlap=0, f=lambda x: x):
@@ -177,6 +184,7 @@ for lagwanted in lagswanted:
         plt.setp(a.get_xticklabels(), visible=False)
     ax[0].set_title('Sliding correlation for {} day lag, {} days training, {}'.format(
         lagwanted, ','.join(map(str, ns)), endpoint))
+    save('6-sliding-corr-{}'.format(lagwanted))
 
 # fig.autofmt_xdate()
 
@@ -318,6 +326,7 @@ for cslide, lagwanted in zip(cslides, lagswanted):
     im.set_clim((0, 1))
     fig.colorbar(im)
     ax.set_title('Sliding correlations, {} days prior lag, {}'.format(lagwanted, endpoint))
+    save('7-sliding-heatmap-{}-{}'.format('en', lagwanted))
 
 # I like this view I think. For each (X, Y) pixel, X days and Y window length (also days), it says
 # "The Y-long window of time starting at X is (not) correlated with the Y-long window starting at
@@ -355,6 +364,7 @@ plt.xlabel('{}'.format(endpoint))
 plt.ylabel('{}, 365 days ago'.format(endpoint))
 plt.title('The 2007 discontinuity')
 plt.legend(['2005/2006', '2006/2007', '2007/2008'])
+save('8-peak-wiki-en')
 # Recall that Peak Wiki happened late April 2007, but edits had been stagnant since Jan 2007.
 #
 # The long dark diagonal slash of low correlation in the sliding correlation heatmap reflects this:
@@ -404,3 +414,4 @@ plt.xlabel('{}'.format(endpoint))
 plt.ylabel('{}, 365 days ago'.format(endpoint))
 plt.title('The 2015 discontinuity')
 plt.legend(list(map(lambda n: str(n), list(np.arange(yrs * 2) / 2 + 2014))))
+save('9-2014-bump-en')
