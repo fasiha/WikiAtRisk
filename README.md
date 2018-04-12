@@ -31,7 +31,7 @@ Right now, the only thing this repo does is download a ton of Wikipedia data int
 ```
 $ node downloader.js
 ```
-This fetches a detailed list of [Wikipedia's languages](https://github.com/fasiha/wikipedia-languages/) and then starts downloading several years worth of very interesting data from several Wikipedia projects. It saves the results in the Level database, so feel free to stop and restart the script till you get all the data. The script rate-limits itself so it might take several hours (`MINIMUM_THROTTLE_DELAY_MS` used to be 30 milliseconds, but when I started getting `top-by-edits` data (see below), I increased this to 500 ms). Currently this script hits 130'050 URLs, and the Leveldb weighs roughly 930 megabytes (with Leveldb's automatic compression). If you know TypeScript, you can read [downloader.ts](downloader.ts) to see what all it's doing.
+This fetches a detailed list of [Wikipedia's languages (GitHub)](https://github.com/fasiha/wikipedia-languages/) and then starts downloading several years worth of very interesting data from several Wikipedia projects. It saves the results in the Level database, so feel free to stop and restart the script till you get all the data. The script rate-limits itself so it might take several hours (`MINIMUM_THROTTLE_DELAY_MS` used to be 30 milliseconds, but when I started getting `top-by-edits` data (see below), I increased this to 500 ms). Currently this script hits 130'050 URLs, and the Leveldb weighs roughly 930 megabytes (with Leveldb's automatic compression). If you know TypeScript, you can read [downloader.ts](downloader.ts) to see what all it's doing.
 
 After that finishes, you need to install [Python 3](https://www.python.org/downloads/) (though I recommend [pyenv](https://github.com/pyenv/pyenv)—Clojure and Rust and plenty of other communities have shown us that we shouldn't rely on system-wide installs), then install `virtualenv` by running the following in the command-line (you only have to do this once):
 ```
@@ -59,9 +59,22 @@ and look at the nice PNGs. (**Work in progress.**)
 
 ## Exploratory data analysis
 
-Here are some interesting insights gleaned from some preliminary analysis (keeping in mind [Hamming's motto](http://www.siam.org/news/news.php?id=893), "The purpose of computation is insight, not numbers").
+Here are some interesting insights gleaned from some preliminary analysis (keeping in mind [Hamming's motto (SIAM)](http://www.siam.org/news/news.php?id=893), "The purpose of computation is insight, not numbers").
 
-![A semi-log plot of daily active editors on English, French, Japanese, Russian, Chinese, Arabic, Hebrew](figs/1-several-langs-editors.svg)
+### Figure: Semi-log plot of daily active editors on English, French, Japanese, Russian, Chinese, Arabic, Hebrew, 2001–2017
+![Semi-log plot of daily active editors on English, French, Japanese, Russian, Chinese, Arabic, Hebrew, 2001-2017](figs/1-several-langs-editors.svg)
+
+> (In case its helpful: looking at the rightmost part of the graph, from the top to bottom, the languages are English, then French, Russian, and Japanese in a close cluster, followed by Chinese, then Hebrew and Arabic right on top of each other—you can distinguish these last two because the Arabic Wikipedia started later than the Hebrew one.)
+>
+> (These languages were chosen semi-randomly from among the top twenty Wikipedias by active editors.)
+
+Note that this plot, of the daily number of editors seen on several Wikipedias, is a [semi-log plot (Wikipedia)](https://en.wikipedia.org/wiki/Semi-log_plot): its y-axis is on the log scale, so each pixel up doesn't *add* an amount to the previous, but *multiplies* it. In other words, straight lines on this semi-log plot mean *exponential* growth or decay (you know, "Exponential growth is the most powerful force in the universe" and all that).
+
+The curves for the English, French, and Japanese Wikipedias show exponential growth in the number of editors from their beginnings in the early 2000s, before hitting Peak Wikipedia on or around 2007, followed by a (much slower) exponential decay.
+
+Gwern's essay, ["In defense of inclusionism"](https://www.gwern.net/In-Defense-Of-Inclusionism) expands on this with a lot of personal detail (personal microhistories are, I believe, an excellent way to learn about something beyond the conventional wisdoms), but in a nutshell, 2007 was when the battle between Wikipedia's inclusionists and deletionists reached a conclusion and the latter won—articles on English Wikipedia at least must be on "notable" topics, so no more articles for each characer in *Pokémon* or *Journey to the West*. This coincided with, or was causally related to, various other changes in editing policy that contributed to the dramatic peak visible here.
+
+Also of interest to me were the annual dips, noticeable even at this resolution, coinciding with the year-end as editors took their holidays somewhere other than Wikipedia. These curves all show a strong seasonal tendency, so further analysis is called for.
 
 ## Data of interest
 
@@ -83,9 +96,9 @@ all, for the top fifty Wikipedias (by active users), from 2001 to end of 2017. T
 
 ## Languages
 
-(Well, I did have exactly this question: [Why are there so many articles in the Cebuano Wikipedia?](https://www.quora.com/Why-are-there-so-many-articles-in-the-Cebuano-language-on-Wikipedia).)
+(Well, I did have exactly this question: [Why are there so many articles in the Cebuano Wikipedia? (Quora)](https://www.quora.com/Why-are-there-so-many-articles-in-the-Cebuano-language-on-Wikipedia).)
 
-This package uses my [`wikipedia-languages`](https://github.com/fasiha/wikipedia-languages) library to automatically fetch some metadata from [Wikistats](https://wikistats.wmflabs.org) and stores it locally in `wikilangs.json`. We then select the top fifty Wikipedias by active users.
+This package uses my [`wikipedia-languages` (GitHub)](https://github.com/fasiha/wikipedia-languages) library to automatically fetch some metadata from [Wikistats](https://wikistats.wmflabs.org) and stores it locally in `wikilangs.json`. We then select the top fifty Wikipedias by active users.
 
 ## Next
 
