@@ -112,9 +112,28 @@ No, it isn't universal. Japanese Wikipedia for example matches my image of the c
 | Saturday | 2,229 | 97.34% |
 | Sunday | 2,290 | 100.00% |
 
-The graph above looks busier and less obvious, but that's mainly because the spread between the day of the week seeing the most editors—Sunday—and the least—Friday—on Japanese Wikipedia is 8%, rather than the 17% on English Wikipedia, but looking closely, the trend sems to be quite stable.
+The graph above looks busier and the trend less obvious, but that's mainly because the spread between the day of the week seeing the most editors—Sunday—and the least—Friday—is 8% on Japanese Wikipedia, rather than the 17% on English Wikipedia. Looking closely, the trend sems to be quite stable.
 
 Of course, this "eyeball filter" can be misled, and we should use proper techniques to detect such cyclicities.
+
+### Figure: Welch's spectral estimates for the daily editors seen on English, French, Japanese, Russian, Chinese, Arabic, and Hebrew Wikipedias, post-Peak
+My poor PhD advisor co-wrote the book on the topic, [*Spectral Analysis of Signals*](http://www2.ece.ohio-state.edu/~randy/SAtext/), and then taught the class, so forgive me for reaching into what might seem an obscore corner of Scipy and subjecting you to my explanation of [`scipy.signal.welch`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.welch.html). In a nutshell, Welch's method gives us statistical estimates of periodicities in a signal, by estimating the signal's spectral density ("spectral" here as in "spectrum" and related to cyclicities and frequencies, not 妖怪). People use this technique to look for periodicities in animal populations, sunspots, stock data, so this is probably not the weirdest thing it's been applied to. Here are the results:
+
+![Welch's spectral estimates for the daily editors seen on English, French, Japanese, Russian, Chinese, Arabic, and Hebrew Wikipedias, post-Peak](figs/3-welch-several-langs-editors.svg)
+
+The x-axis is the period of repetition in days, and the y-axis is the spectral density (a rather unitless figure). The seven languages are thrown on top of one another because I want to highlight points that groups of them seem to share, viz.,
+
+1. all seven show a very strong weekly periodicity: those are the three big peaks on the left, corresponding to 2.33, 3.5, and 7 days, and all languages show a tidy bump there.
+2. English, French, and Russian also show a strong periodicity at 365 days—that's the Christmas/New Year holiday dip in the first figure. Chinese shows a weaker annual cycle, while Japanese, Hebrew, and Arabic show no significant annual cyclicity.
+3. All languages show the 1/f spectra called pink noise.
+
+Now in more detail.
+
+What's with the peaks at 3.5 and 2.33 days? Are large groups of editors really modulating their editing behavior on a 2.33 day cycle? No, these are harmonics of the main 7 day periodicity. Consider that a pure sinusoid, as the ideal periodic signal, would result in a spectral estimate with a single peak, at the sinusoid's frequency. However, if you corrupt that ideal sinusoid in little ways, like clip its peak a bit, it will still manifest a strong cyclicity at its original period, but the corruptions you've added are also periodic. They won't be pure sinusoids, so they will show up as sinusoids at multiples of their base frequency. Steven Smith's [*Scientist and Engineer's Guide to Digital Signal Processing*](http://www.dspguide.com/ch11/5.htm) has a reasonable explanation and example of this.
+
+Similarly, you can make out numerous ther peaks at periods of 365, 182.5, 121.67, 91.25, 73, 60.83, 52.14, 45.62, 40.56, 36.5, 33.18, 30.42, 28.08, 26.07, 24.33, 22.81, 21.47, 20.28, 19.21, etc. etc., days (these are 365 divided by 2 to 19, and peaks for all of these are present in the English Wikipedia curve—I checked). The stronger the base periodicity, the more of these harmonics you expect to see. Again, I take this to mean *not* that there's some weird 28-day cycle that some Wikipedia editors work on ("if 28 days ago we saw a spike or dip in editor activity, then tomorrow..."), but rather there's a strong annual periodicity.
+
+(**In progress.**)
 
 ## Data of interest
 
