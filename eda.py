@@ -70,6 +70,9 @@ def dow(lang, edits):
 
 dow('en', edits)
 save('2-day-of-week-en-{}'.format(endpoint))
+resh2 = lambda x, n: x.ravel()[:(x.size // n) * n].reshape((-1, n))
+dowMedian = remmax(np.median(resh2(edits.loc['en', '2012-12-31':].values, 7), axis=0)) * 100
+
 dow('ja', edits)
 save('2-day-of-week-ja-{}'.format(endpoint))
 

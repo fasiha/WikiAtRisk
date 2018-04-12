@@ -72,9 +72,16 @@ Note that this plot, of the daily number of editors seen on several Wikipedias, 
 
 The curves for the English, French, and Japanese Wikipedias show exponential growth in the number of editors from their beginnings in the early 2000s, before hitting Peak Wikipedia on or around 2007, followed by a (much slower) exponential decay.
 
-Gwern's essay, ["In defense of inclusionism"](https://www.gwern.net/In-Defense-Of-Inclusionism) expands on this with a lot of personal detail (personal microhistories are, I believe, an excellent way to learn about something beyond the conventional wisdoms), but in a nutshell, 2007 was when the battle between Wikipedia's inclusionists and deletionists reached a conclusion and the latter won—articles on English Wikipedia at least must be on "notable" topics, so no more articles for each characer in *Pokémon* or *Journey to the West*. This coincided with, or was causally related to, various other changes in editing policy that contributed to the dramatic peak visible here.
+Gwern's essay, ["In defense of inclusionism"](https://www.gwern.net/In-Defense-Of-Inclusionism) expands on this with a lot of personal detail (personal microhistories are, I believe, an excellent way to learn about something beyond the conventional wisdoms), but in a nutshell, 2007 was when the battle between Wikipedia's inclusionists and deletionists reached a conclusion and the latter won—articles on English Wikipedia at least must be on "notable" topics, so no more articles for each characer in *Pokémon* or *Journey to the West*. This coincided with, or was causally related to, various other changes in editing policy that contributed to the dramatic peak visible here. (For completeness I should probably link to Wikipedia's article, ["Deletionism and inclusionism in Wikipedia"](https://en.wikipedia.org/wiki/Deletionism_and_inclusionism_in_Wikipedia).)
 
-Also of interest to me were the annual dips, noticeable even at this resolution, coinciding with the year-end as editors took their holidays somewhere other than Wikipedia. These curves all show a strong seasonal tendency, so further analysis is called for.
+Restricting ourselves to these last several post-peak years, which will no doubt be most relevant to our prediction efforts, of interest to me were the annual dips, noticeable even at this resolution, coinciding with the year-end as editors took their holidays somewhere other than Wikipedia. These curves all show a strong seasonal tendency, so further analysis is called for.
+
+### Figure: Day-of-week trends of the number of editors on English Wikipedia, 2013–2017
+![Day-of-week trends of the number of editors on English Wikipedia, 2013-2017](figs/2-day-of-week-en-editors.svg)
+
+I confess that my hypothesis before seeing this was that many more would log in to work on Wikipedia on the weekends (I had the image of the Wikipedian commuting home from work on Friday, tired from the week's work but eager to contribute articles). A quick reshaping of the data, followed by a zoom, gives us this view of the number of daily editors seen on English Wikipedia.
+
+First, clearly, there is a tremendous weekly regularity, over many years. Secondly, my guess was totally wrong. The most editors contribute Monday through Thursday—there is about 3% variability between these four days. Then almost 8% fewer log in on Friday, while Saturday sees almost 17% fewer editors than the Monday–Thursday rush. On Sunday, some editors do return from their day of rest: Sunday sees about 12% fewer editors than Monday–Thursday. Since over this interval (2013 and thereafter), English Wikipedia sees on median 22'920 editors (on Tuesday in fact), this translates to almost four thousand editors taking Saturday off.
 
 ## Data of interest
 
