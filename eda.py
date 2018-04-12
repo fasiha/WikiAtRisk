@@ -67,12 +67,20 @@ def dow(lang, edits):
     plt.ylabel(endpoint)
     plt.title('Daily active {} Wikipedia {}'.format(langToData[lang]['lang'], endpoint))
 
+    resh2 = lambda x, n: x.ravel()[:(x.size // n) * n].reshape((-1, n))
+    remmax = lambda x: x / np.max(x)
+    dowMedian = np.median(resh2(edits.loc['en', '2012-12-31':].values, 7), axis=0)
+    print('| Day |  Median {} | % of max |'.format(endpoint))
+    print('|-----|-----------------|----------|')
+    days = edits['time'].loc['2012-12-31':].to_pandas().dt.weekday_name[:7].tolist()
+    print('\n'.join([
+        '| {} | {:,} | {:.2%} |'.format(day, int(med), pct)
+        for med, pct, day in zip(dowMedian, remmax(dowMedian), days)
+    ]))
+
 
 dow('en', edits)
 save('2-day-of-week-en-{}'.format(endpoint))
-resh2 = lambda x, n: x.ravel()[:(x.size // n) * n].reshape((-1, n))
-dowMedian = remmax(np.median(resh2(edits.loc['en', '2012-12-31':].values, 7), axis=0)) * 100
-
 dow('ja', edits)
 save('2-day-of-week-ja-{}'.format(endpoint))
 

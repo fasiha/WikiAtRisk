@@ -81,7 +81,19 @@ Restricting ourselves to these last several post-peak years, which will no doubt
 
 I confess that my hypothesis before seeing this was that many more would log in to work on Wikipedia on the weekends (I had the image of the Wikipedian commuting home from work on Friday, tired from the week's work but eager to contribute articles). A quick reshaping of the data, followed by a zoom, gives us this view of the number of daily editors seen on English Wikipedia.
 
-First, clearly, there is a tremendous weekly regularity, over many years. Secondly, my guess was totally wrong. The most editors contribute Monday through Thursday—there is about 3% variability between these four days. Then almost 8% fewer log in on Friday, while Saturday sees almost 17% fewer editors than the Monday–Thursday rush. On Sunday, some editors do return from their day of rest: Sunday sees about 12% fewer editors than Monday–Thursday. Since over this interval (2013 and thereafter), English Wikipedia sees on median 22'920 editors (on Tuesday in fact), this translates to almost four thousand editors taking Saturday off.
+First, clearly, there is a tremendous weekly regularity, over many years. Secondly, my guess was totally wrong. The most editors contribute Monday through Thursday—there is about 3% variability between these four days. Then almost 8% fewer log in on Friday, while Saturday sees almost 17% fewer editors than the Monday–Thursday rush. On Sunday, some editors do return from their day of rest: Sunday sees about 12% fewer editors than Monday–Thursday. Since over this interval (2013 and thereafter), English Wikipedia sees on median 22'920 editors per day on Tuesday, this translates to almost four thousand editors taking Saturday off.
+
+Raw data:
+
+| Day |  Median editors | % of max |
+|-----|-----------------|----------|
+| Monday | 22,840 | 99.65% |
+| Tuesday | 22,920 | 100% |
+| Wednesday | 22,591 | 98.56% |
+| Thursday | 22,242 | 97.04% |
+| Friday | 21,193 | 92.47% |
+| Saturday | 19,072 | 83.21% |
+| Sunday | 20,255 | 88.37% |
 
 ## Data of interest
 
