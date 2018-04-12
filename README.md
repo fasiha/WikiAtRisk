@@ -133,6 +133,12 @@ What's with the peaks at 3.5 and 2.33 days? Are large groups of editors really m
 
 Similarly, you can make out numerous ther peaks at periods of 365, 182.5, 121.67, 91.25, 73, 60.83, 52.14, 45.62, 40.56, 36.5, 33.18, 30.42, 28.08, 26.07, 24.33, 22.81, 21.47, 20.28, 19.21, etc. etc., days (these are 365 divided by 2 to 19, and peaks for all of these are present in the English Wikipedia curve—I checked). The stronger the base periodicity, the more of these harmonics you expect to see. Again, I take this to mean *not* that there's some weird 28-day cycle that some Wikipedia editors work on ("if 28 days ago we saw a spike or dip in editor activity, then tomorrow..."), but rather there's a strong annual periodicity.
 
+Outside of these peaks and their harmonics, all languages show a marked decay in spectral density: as the period decreases (that is, as the frequency increases), the spectra also decrease, and furthermore, it decreases linearly on this log-log plot. This is known as 1/f or pink noise (Wikipedia's ["Pink noise"](https://en.wikipedia.org/wiki/Pink_noise) is barely comprehensible but there it is), and these frequently occur in many natural systems. One of the most interesting aspects of 1/f noise is that signals with it have long-term memory, and are heavily-correlated over long timescales. Let's investigate this next.
+
+> One thing that I *don't* have to worry about: aliasing. A perennial problem in sampling signals is that the underlying signal might have activity at a frequency faster than you are sampling at, so you have to low-pass filter the signal in the analog domain before sampling (otherwise the too-high frequencies will show up in your spectra as aliases). However, this is a non-issue here because each sample of the daily editor time series is the sum of discrete events: how many editors made a change over a day. All discrete signal, no aliasing problem.
+
+> DSP nerd note: for Welch's method, I used six-year temporal windows with *no* taper (boxcar window) and with 10% overlap between windows. I chose the boxcar window to maximize spectral resolution (as skinny peaks as possible), in my attempt to establish as many peaks as harmonics of base periodicities. I often take larger overlaps, but chose 10% because that gave more of a difference between the 1/f trend and the peaks of the spectral density. I also asked `scipy.signal.welch` to remove any linear trend in the segments before computing the FFT and averaging.
+
 (**In progress.**)
 
 ## Data of interest
