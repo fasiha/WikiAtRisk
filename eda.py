@@ -45,8 +45,8 @@ edits.coords['lang'] = langs
 
 def save(fname, num=None):
     plt.figure(num or plt.gcf().number)
-    for ext in 'png,svg'.split(','):
-        plt.savefig(fname + '.' + ext)
+    plt.savefig(fname + '.svg')
+    plt.savefig(fname + '.png', dpi=150)
 
 
 plt.figure()
