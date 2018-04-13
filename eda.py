@@ -1,14 +1,16 @@
-import pandas as pd
-import xarray as xr
 from functools import reduce
 import json
+import pandas as pd
+import xarray as xr
+import numpy as np
+import numpy.fft as fft
+import numpy.ma as ma
+from scipy.signal import welch, hamming
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
-import numpy as np
-import numpy.fft as fft
-from scipy.signal import welch, hamming
 import matplotlib.dates as mdates
+import matplotlib.colors as mcolors
 
 plt.style.use('ggplot')
 plt.ion()
@@ -257,16 +259,46 @@ en = edits.values[0, :-1]
 lagswanted = [7, 365]
 cslides = [slidingCorrScan(en, lagwanted, 100, 80) for lagwanted in lagswanted]
 
+
+class SqueezedNorm(matplotlib.colors.Normalize):
+    """Via https://stackoverflow.com/a/44438440/500207"""
+
+    def __init__(self, vmin=None, vmax=None, mid=0, s1=2, s2=2, clip=False):
+        self.vmin = vmin  # minimum value
+        self.mid = mid  # middle value
+        self.vmax = vmax  # maximum value
+        self.s1 = s1
+        self.s2 = s2
+        f = lambda x, zero, vmax, s: np.abs((x - zero) / (vmax - zero))**(1. / s) * 0.5
+        self.g = lambda x, zero,vmin,vmax, s1,s2: f(x,zero,vmax,s1)*(x>=zero) - \
+                                             f(x,zero,vmin,s2)*(x<zero)+0.5
+        matplotlib.colors.Normalize.__init__(self, vmin, vmax, clip)
+
+    def __call__(self, value, clip=None):
+        r = self.g(value, self.mid, self.vmin, self.vmax, self.s1, self.s2)
+        return np.ma.masked_array(r)
+
+
+mynorm = SqueezedNorm(vmin=-.4, vmax=1, mid=0., s1=1., s2=1.)
+# See https://stackoverflow.com/a/31052741/500207
+colors1 = plt.cm.Oranges(np.linspace(0., 1, 128))  #[::-1, :]
+colors2 = plt.cm.viridis(np.linspace(0, 1, 128))
+colors = np.vstack((colors1, colors2))
+mymap = mcolors.LinearSegmentedColormap.from_list('my_colormap', colors)
 for cslide, lagwanted in zip(cslides, lagswanted):
     ten = edits['time'][:-1]
     ts = mdates.date2num(ten)
-    fig, ax, im = myim(ts, [x[0][1] for x in cslide], lenStartToArrTail(cslide, lagwanted))
+    fig, ax, im = myim(
+        ts, [x[0][1] for x in cslide],
+        ma.masked_invalid(lenStartToArrTail(cslide, lagwanted)),
+        cmap=mymap,
+        norm=mynorm)
     ax.xaxis_date()
     ax.set_xlabel("window end date")
     ax.set_ylabel('window length (days)')
-    im.set_clim((0, 1))
+    im.set_clim((-0.4, 1))
     fig.colorbar(im)
-    ax.set_title('Sliding correlations, {} days prior lag, {}'.format(lagwanted, endpoint))
+    ax.set_title('Sliding correlations, {} days prior lag, en, {}'.format(lagwanted, endpoint))
     save('7-sliding-heatmap-{}-{}-{}'.format(lagwanted, 'en', endpoint))
 
 # I like this view I think. For each (X, Y) pixel, X days and Y window length (also days), it says
