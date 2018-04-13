@@ -199,7 +199,9 @@ The first point is that, *yes*, the intuition at the end of the previous section
 
 For example, between roughly mid-2004 and mid-2007, the number of editors contributing to English Wikipedia tomorrow was very highly correlated with that a year before—that's the bright patch of yellow that fills the bottom-left corner of the triangle. You'd want to do a bit more testing but I'd hazard that predicting tomorrow's editor count as that of a year ago wouldn't be too bad a system.
 
-Then there's the dark slash across the heatmap. That's Peak Wiki. 
+Then there's the dark slash across the heatmap. That's Peak Wiki. In order to better understand this streak of low-correlation, I had to study a zoomed in plot of Peak Wiki (as sad as it may or may not be).
+
+![Zoomed in plot of daily editors on English Wikipedia, mid-2006 through early 2009, showing Peak Wiki in June 2007](figs/10-peak-wiki-en-editors.svg)
 
 (**In progress.**)
 
