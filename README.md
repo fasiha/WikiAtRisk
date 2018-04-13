@@ -185,7 +185,9 @@ Recall that this auto-correlation plot was made for post-late-2006 data, because
 ### Figure: Sliding window 365-day auto-correlation for daily editors seen on English Wikipedia
 Recall that in the previous plot of auto-correlation, we had a *single* number for the 365-day-lag auto-correlation, by finding the correlation between all 365-days-apart data points in our post-Peak dataset. But we can certainly compute the 365-day correlation over shorter and longer time windows, starting and ending at different time windows, for just one Wikipedia (I chose English here):
 
-![Sliding window 365-day auto-correlation for daily editors seen on English Wikipedia](figs/7-sliding-heatmap-365-en-editors.svg)
+![Sliding window 365-day auto-correlation for daily editors seen on English Wikipedia](figs/7-sliding-heatmap-365-en-editors.png)
+
+(Sorry, all other plots on this page are SVG vector plots, but this has to be a PNG raster because GitHub won't render my heatmap correctly 🤬. The [SVG is here](figs/7-sliding-heatmap-365-en-editors.svg).)
 
 Some preliminary comments: the way to read this heatmap is, on a date given by the x-axis, I take the last `y`-axis days of editor counts and find the correlation coefficient between these versus those a year before, and that's the value of the pixel. The y-axis here runs from 100 days to the full 6209 days between 2001 and 2017. So the full amount of data used to produce each pixel is "one year PLUS the y-axis value"—the extra year coming from needing to compare the oldest part of the time window with the value from a year before to get the year-lag auto-correlation.
 
