@@ -45,11 +45,11 @@ $ pip install -r requirements.txt --upgrade
 ```
 This creates a virtualenv in the current directory (`virtualenv …`), activates it (`source …`), and installs the libraries that my Python code depends on (`pip …`). After the activation step, your terminal's command prompt should show you some indication that it's in a virtualenv: in my case, it prints a `(WikiAtRisk)` before my prompt. Note that if you open a new terminal window or restart your computer, etc., you need to re-activate the virtualenv to be able to use the packages that it installed: simply rerun `source bin/activate`.
 
-Now you're ready to run the LevelDB-to-xarray ingester:
+Now you're ready to run the LevelDB-to-xarray ingester (xarray is a tensor/multidimensional version of Pandas):
 ```
 $ python leveltoxarray.py
 ```
-This will spit out several `.nc` NetCDF files that xarray understands. (xarray is a tensor/multidimensional version of Pandas.)
+This will spit out several `.nc` NetCDF files that xarray understands. These weigh in at two gigabytes uncompressed (bzip2 can compress them to 268 megabytes).
 
 And if you want to make some interesting plots, run
 ```
