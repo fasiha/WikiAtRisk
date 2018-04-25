@@ -25,6 +25,10 @@ endpoint = 'editors'
 endpoint = 'bytes-difference_net'
 endpoint = 'editors'
 endpoint = 'edits'
+endpoint = 'edited-pages_new'
+endpoint = 'editors'
+endpoint = 'edited-pages'
+endpoint = 'registered-users_new'
 ds = xr.merge(
     [xr.open_dataset('latest/{}__{}.wikipedia.nc'.format(endpoint, lang)) for lang in langs])
 
@@ -36,10 +40,12 @@ if 'editorType' in ds.coords:
     edits = ds.loc[subdict].sum('editorType')
     if 'activityLevel' in ds.coords:
         edits = edits.sum('activityLevel')
-if 'access' in ds.coords:
+elif 'access' in ds.coords:
     edits = ds.loc[subdict].sum('access')
-if 'accessSite' in ds.coords:
+elif 'accessSite' in ds.coords:
     edits = ds.loc[subdict].sum('accessSite')
+else:
+    edits = ds.loc[subdict]
 
 edits = xr.concat(edits.data_vars.values(), 'lang')
 edits.coords['lang'] = langs

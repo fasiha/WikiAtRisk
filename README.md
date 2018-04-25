@@ -191,7 +191,7 @@ Recall that in the previous plot of auto-correlation, we had a *single* number f
 
 Some preliminary comments: the way to read this heatmap is, on a date given by the x-axis, I take the last `y`-axis days of editor counts and find the correlation coefficient between these versus those a year before, and that's the value of the pixel. The y-axis here runs from 100 days to the full 6209 days between 2001 and 2017. So the full amount of data used to produce each pixel is "one year PLUS the y-axis value"—the extra year coming from needing to compare the oldest part of the time window with the value from a year before to get the year-lag auto-correlation.
 
-More preliminary comments: the post-Peak 365-day auto-correlation for English Wikipedia shown in the previous section of 0.954 corresponds to a single pixel in this heatmap, along the far right (last day of 2017), and at y-axis of 4109 (the number of days between 2006 October 2 and 2017 December 31). (Once I make these static plots more dyanmic, you'll be able to verify that this is true instead of just taking my word for it. [`eda.py`](eda.py) has a small test to ensure this is true.)
+More preliminary comments: the post-Peak 365-day auto-correlation for English Wikipedia shown in the previous section of 0.954 corresponds to a single pixel in this heatmap, along the far right (last day of 2017), and at y-axis of 4109 (the number of days between 2006 October 2 and 2017 December 31). (Once I make these static plots more dynamic, you'll be able to verify that this is true instead of just taking my word for it. [`eda.py`](eda.py) has a small test to ensure this is true.)
 
 Final preliminary comments: the sloping nature of this heatmap reflects the fact that we have only so many fifteen year windows in any sixteen year data series, so the top of the heatmap is only a few pixels wide. Meanwhile, there are tons of 100-day windows over which to compute the 365-lag auto-correlation, so the heatmap is wide at the bottom.
 
@@ -199,7 +199,7 @@ With these preliminaries hopefully having given you a reasonable grasp on this v
 
 The first point is that, *yes*, the intuition at the end of the previous section is absolutely true: using as much as the last thousand days (almost three years!), the year-lag auto-correlation has drifted up and down over the years, so it is definitely helpful to blow up a single number that we had in the previous section into a two-dimensional map of sliding window auto-correlations.
 
-For example, between roughly mid-2004 and mid-2007, the number of editors contributing to English Wikipedia tomorrow was very highly correlated with that a year before—that's the bright patch of yellow that fills the bottom-left corner of the triangle. You'd want to do a bit more testing but I'd hazard that predicting tomorrow's editor count as that of a year ago wouldn't be too bad a system.
+For example, between roughly mid-2004 and mid-2007, the number of editors contributing to English Wikipedia tomorrow was very highly correlated with that a year before—that's the bright patch of yellow that fills the bottom-left corner of the triangle. You'd want to do a bit more testing but I'd hazard that, during that era (first gen iPhone), predicting tomorrow's editor count as that of a year ago wouldn't be too bad a system.
 
 Then there's the dark slash across the heatmap. That's Peak Wiki. In order to better understand this streak of low-correlation, I had to study a zoomed in plot of Peak Wiki (as sad as it may or may not be).
 
