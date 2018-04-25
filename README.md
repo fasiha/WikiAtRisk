@@ -25,13 +25,13 @@ $ cd WikiAtRisk
 $ npm install
 $ npm run build
 ```
-The above will clone this code repository into a new directory (`git …`), enter that directory (`cd …`), intall the JavaScript dependencies (`npm install`, npm being something installed by Node.js), and build the TypeScript source to JavaScript (`npm run …`).
+The above will clone this code repository into a new directory (`git …`), enter that directory (`cd …`), install the JavaScript dependencies (`npm install`, npm being the Node package manager installed by Node.js), and build the TypeScript source to JavaScript (`npm run …`).
 
-Right now, the only thing this repo does is download a ton of Wikipedia data into a Leveldb database. To get that started, run:
+The TypeScript code will download a ton of Wikipedia data into a Leveldb database. To get that started, run:
 ```
 $ node downloader.js
 ```
-This fetches a detailed list of [Wikipedia's languages (GitHub)](https://github.com/fasiha/wikipedia-languages/) and then starts downloading several years worth of very interesting data from several Wikipedia projects. It saves the results in the Level database, so feel free to stop and restart the script till you get all the data. The script rate-limits itself so it might take several hours (`MINIMUM_THROTTLE_DELAY_MS` used to be 30 milliseconds, but when I started getting `top-by-edits` data (see below), I increased this to 500 ms). Currently this script hits 130'050 URLs, and the Leveldb weighs roughly 930 megabytes (with Leveldb's automatic compression). If you know TypeScript, you can read [downloader.ts](downloader.ts) to see what all it's doing.
+This fetches a detailed list of [Wikipedia's languages (GitHub)](https://github.com/fasiha/wikipedia-languages/) and then starts downloading several years worth of very interesting data from several Wikipedia projects (described at the bottom of this page, in the [Data of Interest](#data-of-interest) section). It saves the results in the Level database, so feel free to stop and restart the script till you get all the data. The script rate-limits itself so it might take several hours (`MINIMUM_THROTTLE_DELAY_MS` used to be 30 milliseconds, but when I started getting `top-by-edits` data (see below), I increased this to 500 ms). Currently this script hits 130'050 URLs, and the Leveldb weighs roughly 930 megabytes (with Leveldb's automatic compression). If you know TypeScript, you can read [downloader.ts](downloader.ts) to see what all it's doing.
 
 After that finishes, you need to install [Python 3](https://www.python.org/downloads/) (though I recommend [pyenv](https://github.com/pyenv/pyenv)—Clojure and Rust and plenty of other communities have shown us that we shouldn't rely on system-wide installs), then install `virtualenv` by running the following in the command-line (you only have to do this once):
 ```
