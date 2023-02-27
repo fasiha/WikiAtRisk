@@ -34,7 +34,7 @@
     "callbag-last": "^1.1.4",
     "callbag-throttle": "^1.0.2",
     "camelcase": "^4.1.0",
-    "level": "^3.0.0",
+    "level": "^3.0.2",
     "lodash.product": "^18.1.16",
     "node-fetch": "^2.0.0",
     "range-generator": "^1.0.2",
